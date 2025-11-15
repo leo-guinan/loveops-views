@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { OnboardingFlow } from "./onboarding/OnboardingFlow";
 import { UserHome } from "./pages/UserHome";
 import { MatchDetail } from "./pages/MatchDetail";
-import "../styles/onboarding.css";
+import "./styles/onboarding.css";
 
 type AppState = "onboarding" | "home" | "match";
 
