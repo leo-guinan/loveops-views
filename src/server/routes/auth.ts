@@ -91,14 +91,20 @@ export function createAuthRouter(
     try {
       // Get user profile from world model
       const events = await worldModel["client"].getEventsForUser(userId);
-      const profile = await worldModel["client"].evalView("UserProfileStateView", events);
+      const profile = await worldModel["client"].evalView<any>("UserProfileStateView", events);
+      
+      // Extract Twitter-related fields from profile (may be stored in different ways)
+      const twitterId = (profile as any)?.twitterId || (profile as any)?.social?.twitter?.id || "";
+      const twitterUsername = (profile as any)?.twitterUsername || (profile as any)?.social?.twitter?.username || "";
+      const displayName = (profile as any)?.displayName || (profile as any)?.core?.name || "";
+      const profileImageUrl = (profile as any)?.profileImageUrl || (profile as any)?.photos?.[0] || undefined;
       
       done(null, {
         userId,
-        twitterId: profile?.twitterId || "",
-        twitterUsername: profile?.twitterUsername || "",
-        displayName: profile?.displayName || "",
-        profileImageUrl: profile?.profileImageUrl,
+        twitterId,
+        twitterUsername,
+        displayName,
+        profileImageUrl,
       });
     } catch (error) {
       console.error("Error deserializing user:", error);
