@@ -6,8 +6,8 @@ export class QueueService {
   private queuePath: string;
 
   constructor(queuePath?: string) {
-    // Use environment variable or default path
-    this.queuePath = queuePath || process.env.QUEUE_PATH || "/var/queues/loveops-events-ingest/ready";
+    // Use environment variable or default path (base queue path, not including "ready")
+    this.queuePath = queuePath || process.env.QUEUE_PATH || "/var/queues/loveops-events-ingest";
     this.ensureQueueDirectory();
   }
 
@@ -20,7 +20,7 @@ export class QueueService {
       console.error(`Failed to create queue directory: ${error}`);
       // Fallback to local queue directory if /var/queues doesn't exist
       if (this.queuePath.startsWith("/var/")) {
-        const localPath = path.join(process.cwd(), "queues", "loveops-events-ingest", "ready");
+        const localPath = path.join(process.cwd(), "queues", "loveops-events-ingest");
         this.queuePath = localPath;
         fs.mkdirSync(this.queuePath, { recursive: true });
         console.log(`Using local queue directory: ${this.queuePath}`);
@@ -34,18 +34,25 @@ export class QueueService {
    */
   async enqueue(jobType: string, payload: any): Promise<string> {
     const jobId = randomUUID();
+    // Match QueueJob format expected by world-model processor
     const jobData = {
       id: jobId,
-      type: jobType,
       payload,
-      createdAt: new Date().toISOString(),
-      status: "ready",
+      attempts: 0,
+      createdAt: new Date().toISOString()
     };
 
+    // Write to ready directory (in-process queue format)
+    const readyDir = path.join(this.queuePath, "ready");
     const fileName = `${jobId}.json`;
-    const filePath = path.join(this.queuePath, fileName);
+    const filePath = path.join(readyDir, fileName);
 
     try {
+      // Ensure ready directory exists
+      if (!fs.existsSync(readyDir)) {
+        fs.mkdirSync(readyDir, { recursive: true });
+      }
+      
       fs.writeFileSync(filePath, JSON.stringify(jobData, null, 2), "utf-8");
       console.log(`Job enqueued: ${jobId} to ${filePath}`);
       return jobId;
@@ -166,16 +173,22 @@ export class QueueService {
     }
 
     const jobId = randomUUID();
+    // Match QueueJob format expected by in-process processors
     const jobData = {
       id: jobId,
-      type: jobType,
       payload,
-      createdAt: new Date().toISOString(),
-      status: "ready",
+      attempts: 0,
+      createdAt: new Date().toISOString()
     };
 
+    // Ensure ready directory exists
+    const readyDir = path.join(queuePath, "ready");
+    if (!fs.existsSync(readyDir)) {
+      fs.mkdirSync(readyDir, { recursive: true });
+    }
+    
     const fileName = `${jobId}.json`;
-    const filePath = path.join(queuePath, fileName);
+    const filePath = path.join(readyDir, fileName);
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(jobData, null, 2), "utf-8");
