@@ -14,7 +14,12 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "jsx": "react"
+    "jsx": "react",
+    "baseUrl": "./src",
+    "paths": {
+      "loveops-policy": ["./types/loveops-policy"],
+      "loveops-world-model": ["./types/loveops-world-model"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

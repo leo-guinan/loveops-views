@@ -6,7 +6,7 @@ import {
   CoachingEngine,
   MatchRecommendation,
   MessageSuggestion,
-} from "../../types/loveops-policy";
+} from "../types/loveops-policy";
 
 export class PolicyService {
   constructor(

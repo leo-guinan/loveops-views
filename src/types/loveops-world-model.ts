@@ -206,4 +206,8 @@ export function createDatingEvent<TPayload>(
   params: Omit<DatingFactEvent, "id" | "timestamp" | "payload"> & {
     payload: TPayload;
   }
-): DatingFactEvent;
+): DatingFactEvent {
+  // Placeholder implementation
+  return {} as DatingFactEvent;
+}
+
