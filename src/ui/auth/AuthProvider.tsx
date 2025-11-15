@@ -41,7 +41,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include', // Include cookies for session
+      });
+      
       if (response.ok) {
         const data = await response.json();
         if (data.authenticated && data.user) {
@@ -49,11 +52,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           setUser(null);
         }
+      } else if (response.status === 401) {
+        // 401 is expected when user is not authenticated (e.g., during onboarding)
+        // This is not an error, just means user needs to log in
+        setUser(null);
       } else {
+        // Other errors (500, etc.) - log but don't treat as critical
+        console.warn('Auth check returned status:', response.status);
         setUser(null);
       }
     } catch (error) {
-      console.error('Error checking auth:', error);
+      // Network errors or other issues - don't log as error during onboarding
+      // Only log if it's not a simple "not authenticated" case
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Network error - might be CORS or connection issue
+        console.warn('Auth check failed (network):', error.message);
+      } else {
+        console.error('Error checking auth:', error);
+      }
       setUser(null);
     } finally {
       setLoading(false);
