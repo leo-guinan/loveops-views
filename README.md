@@ -58,3 +58,39 @@ PORT=3000
 - `pnpm build` - Build for production
 - `pnpm start` - Run production build
 
+## Docker
+
+### Build the image
+
+```bash
+docker build -t loveops-interface .
+```
+
+### Run the container
+
+```bash
+docker run -p 3000:3000 \
+  -e RHIZOME_NODE_URL=http://host.docker.internal:3001 \
+  -e PORT=3000 \
+  loveops-interface
+```
+
+### Using Docker Compose
+
+```bash
+# Set environment variables in .env file or export them
+export RHIZOME_NODE_URL=http://localhost:3001
+export PORT=3000
+
+# Start the service
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+```
+
+The Dockerfile uses a multi-stage build for optimized production images, installing only production dependencies in the final stage.
+
