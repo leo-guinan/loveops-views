@@ -1,6 +1,34 @@
 // Placeholder implementations for loveops-policy
 // Replace with actual package imports when available
 
+import type { MatchCompatibilityState } from "./loveops-world-model";
+
+export type MatchRecommendation = {
+  userId: string;
+  candidateId: string;
+  compatibility: MatchCompatibilityState;
+};
+
+export type MessageSuggestion = {
+  matchId: string;
+  senderId: string;
+  text: string;
+  tone: "warm_confident" | "playful" | "direct" | string;
+  rationale: string;
+};
+
+export type PacingRecommendation = {
+  userId: string;
+  recommendedRate: "slow" | "normal" | "fast";
+  notes: string;
+};
+
+export type SafetyAction = {
+  userId: string;
+  action: "limit_matches" | "require_verification" | "ban" | "warn";
+  reason: string;
+};
+
 export class LoveopsRhizomeClient {
   constructor(private url: string) {}
   
@@ -18,7 +46,7 @@ export class LoveopsRhizomeClient {
 export class MatchingEngine {
   constructor(private client: LoveopsRhizomeClient) {}
   
-  async recommendForUser(userId: string): Promise<any[]> {
+  async recommendForUser(userId: string): Promise<MatchRecommendation[]> {
     console.warn(`[Placeholder] MatchingEngine.recommendForUser(${userId}) - using placeholder implementation`);
     return [];
   }
@@ -27,9 +55,15 @@ export class MatchingEngine {
 export class CoachingEngine {
   constructor(private client: LoveopsRhizomeClient) {}
   
-  async suggestMessage(matchId: string, senderId: string): Promise<any> {
+  async suggestMessage(matchId: string, senderId: string): Promise<MessageSuggestion> {
     console.warn(`[Placeholder] CoachingEngine.suggestMessage(${matchId}, ${senderId}) - using placeholder implementation`);
-    return { suggestion: "Placeholder message suggestion" };
+    return {
+      matchId,
+      senderId,
+      text: "Placeholder message suggestion",
+      tone: "warm_confident",
+      rationale: "This is a placeholder implementation"
+    };
   }
   
   async getInsightsForUser(userId: string): Promise<any> {
@@ -37,4 +71,3 @@ export class CoachingEngine {
     return { insights: [] };
   }
 }
-

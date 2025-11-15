@@ -8,12 +8,14 @@ type Props = {
 };
 
 export const CompatibilityMap: React.FC<Props> = ({ compatibility }) => {
-  const { axes, explanation } = compatibility;
+  const { userA, userB, compatibilityScore, axes, explanation } = compatibility;
 
   // Simple text-based version; later: nice radar chart
   return (
     <div className="compatibility-map">
       <h3>Compatibility Overview</h3>
+      <p>Match between {userA} and {userB}</p>
+      <p><strong>Overall Compatibility: {Math.round(compatibilityScore * 100)}%</strong></p>
       <ul>
         <li>Values Alignment: {Math.round(axes.valuesAlignment * 100)}%</li>
         <li>Lifestyle Overlap: {Math.round(axes.lifestyleOverlap * 100)}%</li>

@@ -34,7 +34,11 @@ export function createUserRouter(
     try {
       const { userId, matchId } = req.params;
       const suggestion = await policy.suggestMessage(matchId, userId);
-      res.json(suggestion);
+      res.json({
+        suggestion: suggestion.text,
+        tone: suggestion.tone,
+        rationale: suggestion.rationale,
+      });
     } catch (error) {
       console.error("Error suggesting opener:", error);
       res.status(500).json({ error: "Failed to suggest opener" });

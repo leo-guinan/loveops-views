@@ -8,44 +8,53 @@ type Props = {
 };
 
 export const EmotionalDashboard: React.FC<Props> = ({ emotionalState }) => {
-  const { currentLoad, trends, riskFactors } = emotionalState;
+  const {
+    burnoutLevel,
+    averageVibePast30d,
+    averageSafetyPast30d,
+    varianceOfExperiences,
+    recommendedPaceAdjustment,
+  } = emotionalState;
 
   return (
     <div className="emotional-dashboard">
       <h3>Emotional Load Dashboard</h3>
       
-      <div className="current-load">
-        <h4>Current Load</h4>
+      <div className="burnout-level">
+        <h4>Burnout Level</h4>
         <div className="load-indicator">
           <div 
             className="load-bar" 
-            style={{ width: `${currentLoad * 100}%` }}
+            style={{ width: `${burnoutLevel * 100}%` }}
           />
-          <span>{Math.round(currentLoad * 100)}%</span>
+          <span>{Math.round(burnoutLevel * 100)}%</span>
         </div>
       </div>
 
-      <div className="trends">
-        <h4>Trends</h4>
+      <div className="metrics">
+        <h4>Past 30 Days</h4>
         <ul>
-          {trends.map((trend: { direction: "increasing" | "decreasing"; description: string }, i: number) => (
-            <li key={i}>
-              {trend.direction === "increasing" ? "↑" : "↓"} {trend.description}
-            </li>
-          ))}
+          {averageVibePast30d !== null && (
+            <li>Average Vibe: {averageVibePast30d.toFixed(2)}</li>
+          )}
+          {averageSafetyPast30d !== null && (
+            <li>Average Safety: {averageSafetyPast30d.toFixed(2)}</li>
+          )}
+          {varianceOfExperiences !== null && (
+            <li>Experience Variance: {varianceOfExperiences.toFixed(2)}</li>
+          )}
         </ul>
       </div>
 
-      {riskFactors.length > 0 && (
-        <div className="risk-factors">
-          <h4>Risk Factors</h4>
-          <ul>
-            {riskFactors.map((factor: string, i: number) => (
-              <li key={i}>{factor}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="recommendation">
+        <h4>Recommended Pace</h4>
+        <p>
+          {recommendedPaceAdjustment === "slow_down" && "↓ Slow down"}
+          {recommendedPaceAdjustment === "keep" && "→ Keep current pace"}
+          {recommendedPaceAdjustment === "invite_reflection" && "💭 Invite reflection"}
+          {recommendedPaceAdjustment === "opt_in_experiments" && "🧪 Opt into experiments"}
+        </p>
+      </div>
     </div>
   );
 };

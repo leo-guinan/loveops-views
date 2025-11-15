@@ -67,7 +67,7 @@ export const UserHome: React.FC<Props> = ({ userId, onMatchSelect }) => {
       <header>
         <h1>Welcome back!</h1>
         {dashboardState?.profile && (
-          <p>User: {dashboardState.profile.name || userId}</p>
+          <p>User: {dashboardState.profile.core.name || userId}</p>
         )}
       </header>
 
