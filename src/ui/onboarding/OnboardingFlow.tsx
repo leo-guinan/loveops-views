@@ -140,7 +140,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
   };
 
   const pollJobStatus = async (jobId: string, userId: string) => {
-    const maxAttempts = 60; // Poll for up to 60 seconds
+    const maxAttempts = 120; // Poll for up to 2 minutes (jobs can take time)
     let attempts = 0;
     
     const poll = async () => {
@@ -153,22 +153,32 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
 
         const data = await response.json();
         
-        if (data.status === "completed" && data.results) {
-          // Processing complete, store results
+        console.log(`Job ${jobId} status: ${data.status} (queue state: ${data.queueState})`);
+        
+        if (data.status === "completed") {
+          // Processing complete - event has been ingested into world model
+          // Generate mock results for now (in production, fetch from world model)
+          const compatibility = generateCompatibility();
+          const sparkIntro = generateSparkIntro();
+          const archetype = generateArchetype();
+          
           setState((prevState) => ({
             ...prevState,
-            screen: 2,
+            screen: 3, // Move to compatibility preview
             uploadedFile: prevState.uploadedFile,
             isProcessing: false,
-            compatibility: data.results.compatibility,
-            sparkIntro: data.results.sparkIntro,
-            archetype: data.results.archetype,
-            userId: data.results.userId || userId,
+            compatibility,
+            sparkIntro,
+            archetype,
+            userId: userId,
           }));
         } else if (data.status === "failed") {
-          throw new Error(data.error || "Document processing failed");
+          throw new Error(data.results?.error || "Document processing failed");
+        } else if (data.status === "not_found") {
+          // Job not found - might have been cleaned up or never existed
+          throw new Error("Job not found. Please try uploading again.");
         } else {
-          // Still processing, poll again
+          // Still processing (queued, processing), poll again
           attempts++;
           if (attempts < maxAttempts) {
             setTimeout(poll, 1000); // Poll every second
@@ -178,8 +188,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
         }
       } catch (error) {
         console.error("Error polling job status:", error);
-        alert("Failed to check processing status. Please try again.");
-        setState({ ...state, screen: 1, isProcessing: false });
+        alert(`Failed to check processing status: ${error instanceof Error ? error.message : "Unknown error"}`);
+        setState((prevState) => ({ ...prevState, screen: 1, isProcessing: false }));
       }
     };
 

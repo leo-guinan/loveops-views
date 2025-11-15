@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
+import * as fs from "fs";
+import * as path from "path";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
 import { QueueService } from "../../services/QueueService";
@@ -75,18 +77,72 @@ export function createOnboardingRouter(
   router.get("/job-status/:jobId", async (req: Request, res: Response) => {
     try {
       const { jobId } = req.params;
+      const queuesDir = process.env.VQ_QUEUES_DIR || "/var/queues";
+      const queueName = "loveops-events-ingest";
+      const queuePath = path.join(queuesDir, queueName);
       
-      // TODO: Check job status from queue or result storage
-      // For now, return queued status
-      // In production, you'd check:
-      // - If job is still in queue (ready/processing)
-      // - If job has completed (check results storage)
-      // - If job failed (check error storage)
+      // Check each state directory for the job
+      const states = ["ready", "in_progress", "done", "dead", "scheduled"];
+      let jobState: string | null = null;
+      let jobPayload: any = null;
+      
+      for (const state of states) {
+        const statePath = path.join(queuePath, state, `${jobId}.json`);
+        if (fs.existsSync(statePath)) {
+          jobState = state;
+          try {
+            const content = fs.readFileSync(statePath, "utf-8");
+            const job = JSON.parse(content);
+            jobPayload = job.payload;
+          } catch (error) {
+            console.error(`Error reading job file ${statePath}:`, error);
+          }
+          break;
+        }
+      }
+      
+      if (!jobState) {
+        // Job not found in any state - might have been processed and cleaned up
+        // or never existed
+        return res.json({
+          jobId,
+          status: "not_found",
+          message: "Job not found in queue",
+        });
+      }
+      
+      // Map queue states to API status
+      let status: string;
+      let results: any = null;
+      
+      if (jobState === "done") {
+        status = "completed";
+        // For document uploads, the event has been ingested
+        // We could fetch the user's profile from world model here
+        // For now, return success
+        results = {
+          success: true,
+          message: "Document processed successfully",
+          // TODO: Fetch actual results from world model if needed
+        };
+      } else if (jobState === "dead") {
+        status = "failed";
+        results = {
+          error: "Job failed after maximum retries",
+        };
+      } else if (jobState === "in_progress") {
+        status = "processing";
+      } else if (jobState === "ready" || jobState === "scheduled") {
+        status = "queued";
+      } else {
+        status = "unknown";
+      }
       
       res.json({
         jobId,
-        status: "queued", // or "processing", "completed", "failed"
-        // If completed, include results here
+        status,
+        queueState: jobState,
+        results,
       });
     } catch (error) {
       console.error("Error checking job status:", error);
