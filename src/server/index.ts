@@ -1,6 +1,7 @@
 import express, { Express } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
 // Placeholder imports - replace with actual packages when available
 // import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
 // import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
@@ -24,6 +25,9 @@ async function createApp(): Promise<Express> {
   // Middleware
   app.use(cors());
   app.use(express.json());
+  
+  // Serve static files from dist/public (built React app) or public (fallback)
+  app.use(express.static("dist/public"));
   app.use(express.static("public"));
 
   // Initialize services
@@ -40,19 +44,16 @@ async function createApp(): Promise<Express> {
   app.use("/api/coaching", createCoachingRouter(policyService));
   app.use("/api/admin", createAdminRouter(worldModelService, policyService));
 
-  // Root endpoint
-  app.get("/", (req, res) => {
-    res.json({
-      name: "loveops-interface",
-      version: "0.1.0",
-      description: "APIs and UI that expose the world model and policy",
-      endpoints: {
-        user: "/api/user",
-        matches: "/api/matches",
-        coaching: "/api/coaching",
-        admin: "/api/admin"
-      }
-    });
+  // Serve React app for all non-API routes
+  app.get("*", (req, res, next) => {
+    // Don't serve React app for API routes
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    // Serve the built React app's index.html from dist/public
+    // When server is built, __dirname is dist/server, so ../public is dist/public
+    const indexPath = path.join(__dirname, "../public/index.html");
+    res.sendFile(indexPath);
   });
 
   return app;

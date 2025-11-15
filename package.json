@@ -4,8 +4,12 @@
   "description": "APIs and UI that expose the world model and policy",
   "main": "dist/server/index.js",
   "scripts": {
-    "build": "tsc",
-    "dev": "ts-node-dev --respawn --transpile-only src/server/index.ts",
+    "build": "tsc && vite build",
+    "build:server": "tsc",
+    "build:client": "vite build",
+    "dev": "concurrently \"ts-node-dev --respawn --transpile-only src/server/index.ts\" \"vite\"",
+    "dev:server": "ts-node-dev --respawn --transpile-only src/server/index.ts",
+    "dev:client": "vite",
     "start": "node dist/server/index.js",
     "type-check": "tsc --noEmit"
   },
@@ -27,8 +31,11 @@
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
-    "ts-node-dev": "^2.0.0"
+    "ts-node-dev": "^2.0.0",
+    "vite": "^5.0.8",
+    "concurrently": "^8.2.2"
   },
   "packageManager": "pnpm@8.15.9+sha512.499434c9d8fdd1a2794ebf4552b3b25c0a633abcee5bb15e7b5de90f32f47b513aca98cd5cfd001c31f0db454bc3804edccd578501e4ca293a6816166bbd9f81"
 }

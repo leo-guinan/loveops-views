@@ -14,12 +14,13 @@ COPY package.json pnpm-lock.yaml* ./
 # Install all dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile || pnpm install
 
-# Copy source code
+# Copy source code and config files
 COPY tsconfig.json ./
+COPY vite.config.ts ./
 COPY src ./src
 COPY public ./public
 
-# Build TypeScript
+# Build TypeScript server and React app with Vite
 RUN pnpm build
 
 # Stage 2: Production

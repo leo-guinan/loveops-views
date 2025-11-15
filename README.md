@@ -39,8 +39,28 @@ loveops-interface/
 ## Setup
 
 ```bash
+# Install dependencies
 pnpm install
+
+# For development (runs both server and Vite dev server)
 pnpm dev
+
+# Or run separately:
+# Terminal 1: Backend server
+pnpm dev:server
+
+# Terminal 2: Frontend dev server (with hot reload)
+pnpm dev:client
+```
+
+**Note:** In development, the React app runs on `http://localhost:5173` (Vite dev server) and proxies API calls to `http://localhost:3000`. For production, build everything and run the server:
+
+```bash
+# Build everything
+pnpm build
+
+# Start production server (serves built React app)
+pnpm start
 ```
 
 **Note:** This repository uses placeholder type definitions for `loveops-policy` and `loveops-world-model` packages. When these packages are available, update the imports in:
