@@ -2,6 +2,7 @@ import express, { Express } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import session from "express-session";
 // Placeholder imports - replace with actual packages when available
 // import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
 // import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
@@ -10,12 +11,15 @@ import { LoveopsRhizomeClient, MatchingEngine, CoachingEngine } from "../types/l
 import { WorldModelService } from "../services/WorldModelService";
 import { PolicyService } from "../services/PolicyService";
 import { ViewsQueueProcessor } from "../services/ViewsQueueProcessor";
+import { AuthService } from "../services/AuthService";
+import { QueueService } from "../services/QueueService";
 import { createUserRouter } from "./routes/user";
 import { createMatchesRouter } from "./routes/matches";
 import { createCoachingRouter } from "./routes/coaching";
 import { createAdminRouter } from "./routes/admin";
 import { createPaymentRouter } from "./routes/payment";
 import { createOnboardingRouter } from "./routes/onboarding";
+import { createAuthRouter } from "./routes/auth";
 
 dotenv.config();
 
@@ -26,8 +30,26 @@ async function createApp(): Promise<Express> {
   const app = express();
 
   // Middleware
-  app.use(cors());
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    credentials: true,
+  }));
   app.use(express.json());
+  
+  // Session configuration
+  const sessionSecret = process.env.SESSION_SECRET || "change-me-in-production-" + Date.now();
+  app.use(
+    session({
+      secret: sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      },
+    })
+  );
   
   // Serve static files from dist/public (built React app) or public (fallback)
   app.use(express.static("dist/public"));
@@ -36,16 +58,19 @@ async function createApp(): Promise<Express> {
   // Initialize services
   const rhizomeClient = new LoveopsRhizomeClient(RHIZOME_NODE_URL);
   const worldModelService = new WorldModelService(rhizomeClient);
+  const queueService = new QueueService();
 
   const matchingEngine = new MatchingEngine(rhizomeClient);
   const coachingEngine = new CoachingEngine(rhizomeClient);
   const policyService = new PolicyService(matchingEngine, coachingEngine);
+  const authService = new AuthService(rhizomeClient, queueService);
 
   // Start in-process queue processor
   const queueProcessor = new ViewsQueueProcessor(worldModelService, policyService);
   queueProcessor.start("views");
 
   // Routes
+  app.use("/api/auth", createAuthRouter(authService, worldModelService, policyService));
   app.use("/api/user", createUserRouter(worldModelService, policyService));
   app.use("/api/matches", createMatchesRouter(worldModelService, policyService));
   app.use("/api/coaching", createCoachingRouter(policyService));

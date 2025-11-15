@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
 import { QueueService } from "../../services/QueueService";
+import { requireAuth, getAuthenticatedUserId } from "./auth";
 
 export function createUserRouter(
   worldModel: WorldModelService,
@@ -10,9 +11,16 @@ export function createUserRouter(
   const router = Router();
   const queueService = new QueueService();
 
-  router.get("/:userId/dashboard", async (req: Request, res: Response) => {
+  // All routes require authentication
+  router.use(requireAuth);
+
+  router.get("/dashboard", async (req: Request, res: Response) => {
     try {
-      const { userId } = req.params;
+      const userId = getAuthenticatedUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
       const state = await worldModel.getUserDashboardState(userId);
       res.json(state);
     } catch (error) {
@@ -21,9 +29,12 @@ export function createUserRouter(
     }
   });
 
-  router.post("/:userId/matches/recommend", async (req: Request, res: Response) => {
+  router.post("/matches/recommend", async (req: Request, res: Response) => {
     try {
-      const { userId } = req.params;
+      const userId = getAuthenticatedUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       
       // Enqueue matching job to loveops-policy-matching queue
       // Views service will process this in-process
@@ -40,9 +51,14 @@ export function createUserRouter(
     }
   });
 
-  router.post("/:userId/matches/:matchId/suggest-opener", async (req: Request, res: Response) => {
+  router.post("/matches/:matchId/suggest-opener", async (req: Request, res: Response) => {
     try {
-      const { userId, matchId } = req.params;
+      const userId = getAuthenticatedUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { matchId } = req.params;
       
       // Enqueue coaching job to loveops-policy-coaching queue
       // Views service will process this in-process

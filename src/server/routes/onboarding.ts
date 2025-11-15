@@ -3,6 +3,7 @@ import multer from "multer";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
 import { QueueService } from "../../services/QueueService";
+import { getAuthenticatedUserId } from "./auth";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -41,7 +42,11 @@ export function createOnboardingRouter(
       }
 
       const file = req.file;
-      const userId = req.body.userId || `temp-${Date.now()}`;
+      // Use authenticated userId if available, fallback to body param (for temp users during onboarding)
+      const userId = getAuthenticatedUserId(req) || req.body.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required or userId must be provided" });
+      }
 
       // Enqueue the document processing job to VibeQueue
       const jobId = await queueService.enqueueDocumentProcessing(userId, {

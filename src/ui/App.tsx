@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
+import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { OnboardingFlow } from "./onboarding/OnboardingFlow";
 import { UserHome } from "./pages/UserHome";
 import { MatchDetail } from "./pages/MatchDetail";
@@ -14,12 +16,26 @@ type MatchState = {
   userId2: string;
 };
 
-export const App: React.FC = () => {
-  // In a real app, this would come from authentication/localStorage
+const AppContent: React.FC = () => {
+  const { user, authenticated, loading } = useAuth();
   const [appState, setAppState] = useState<AppState>("onboarding");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(user?.userId || null);
   const [matchState, setMatchState] = useState<MatchState | null>(null);
   const [paymentSessionId, setPaymentSessionId] = useState<string | null>(null);
+
+  // Update userId when auth state changes
+  useEffect(() => {
+    if (authenticated && user) {
+      setCurrentUserId(user.userId);
+      // If user is authenticated and on onboarding, move to home
+      if (appState === "onboarding") {
+        setAppState("home");
+      }
+    } else if (!authenticated && !loading) {
+      setCurrentUserId(null);
+      setAppState("onboarding");
+    }
+  }, [authenticated, user, loading]);
 
   // Check for payment redirect on mount
   useEffect(() => {
@@ -71,34 +87,63 @@ export const App: React.FC = () => {
     setAppState("onboarding");
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
-      {appState === "onboarding" && <OnboardingFlow onComplete={handleOnboardingComplete} userId={currentUserId} />}
+      {appState === "onboarding" && (
+        <OnboardingFlow onComplete={handleOnboardingComplete} userId={currentUserId} />
+      )}
       {appState === "payment-success" && paymentSessionId && currentUserId && (
-        <Screen7PaymentSuccess
-          sessionId={paymentSessionId}
-          userId={currentUserId}
-          onComplete={handlePaymentComplete}
-        />
+        <ProtectedRoute>
+          <Screen7PaymentSuccess
+            sessionId={paymentSessionId}
+            userId={currentUserId}
+            onComplete={handlePaymentComplete}
+          />
+        </ProtectedRoute>
       )}
       {appState === "payment-cancel" && currentUserId && (
-        <Screen7PaymentCancel
-          userId={currentUserId}
-          onBack={handlePaymentCancel}
-        />
+        <ProtectedRoute>
+          <Screen7PaymentCancel
+            userId={currentUserId}
+            onBack={handlePaymentCancel}
+          />
+        </ProtectedRoute>
       )}
       {appState === "home" && currentUserId && (
-        <UserHome userId={currentUserId} onMatchSelect={handleMatchSelect} />
+        <ProtectedRoute>
+          <UserHome userId={currentUserId} onMatchSelect={handleMatchSelect} />
+        </ProtectedRoute>
       )}
       {appState === "match" && matchState && (
-        <MatchDetail
-          matchId={matchState.matchId}
-          userId1={matchState.userId1}
-          userId2={matchState.userId2}
-          onBack={handleBack}
-        />
+        <ProtectedRoute>
+          <MatchDetail
+            matchId={matchState.matchId}
+            userId1={matchState.userId1}
+            userId2={matchState.userId2}
+            onBack={handleBack}
+          />
+        </ProtectedRoute>
       )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 
