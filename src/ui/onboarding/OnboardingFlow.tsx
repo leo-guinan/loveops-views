@@ -11,11 +11,13 @@ import { Screen9EngineLive } from "./Screen9EngineLive";
 import { Screen10FirstSpark } from "./Screen10FirstSpark";
 import { Screen11InviteFriend } from "./Screen11InviteFriend";
 import { Screen12Dashboard } from "./Screen12Dashboard";
+import { DateMeDocFlow } from "./DateMeDocFlow";
 
 type OnboardingState = {
   screen: number;
   uploadedFile?: File;
   isProcessing?: boolean;
+  creatingDoc?: boolean;
   compatibility?: {
     emotionalRhythm: string;
     communication: string;
@@ -86,6 +88,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
   const handleScreen0NoDoc = () => {
     // For now, just proceed to doc upload
     setState({ ...state, screen: 1 });
+  };
+  const handleScreen0CreateDoc = () => {
+    setState({ ...state, creatingDoc: true });
+  };
+  const handleDateMeDocComplete = (docText: string) => {
+    // Date-Me Doc created, now treat it as if it was uploaded
+    // Create a file from the text and proceed to processing
+    const blob = new Blob([docText], { type: "text/plain" });
+    const file = new File([blob], "date-me-doc.txt", { type: "text/plain" });
+    handleScreen1Upload(file);
+    setState({ ...state, creatingDoc: false, screen: 2 });
+  };
+  const handleDateMeDocCancel = () => {
+    setState({ ...state, creatingDoc: false, screen: 0 });
   };
 
   const handleScreen1Upload = async (file: File) => {
@@ -239,9 +255,25 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     console.log('Navigate to match:', matchId);
   };
 
+  // Show Date-Me Doc creation flow if active
+  if (state.creatingDoc) {
+    return (
+      <DateMeDocFlow
+        onComplete={handleDateMeDocComplete}
+        onCancel={handleDateMeDocCancel}
+      />
+    );
+  }
+
   switch (state.screen) {
     case 0:
-      return <Screen0Landing onUploadDoc={handleScreen0Upload} onNoDoc={handleScreen0NoDoc} />;
+      return (
+        <Screen0Landing
+          onUploadDoc={handleScreen0Upload}
+          onNoDoc={handleScreen0NoDoc}
+          onCreateDoc={handleScreen0CreateDoc}
+        />
+      );
     case 1:
       return <Screen1DocUpload onDocUploaded={handleScreen1Upload} onBack={() => setState({ ...state, screen: 0 })} />;
     case 2:

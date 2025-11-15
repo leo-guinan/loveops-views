@@ -3,9 +3,10 @@ import React from "react";
 type Props = {
   onUploadDoc: () => void;
   onNoDoc: () => void;
+  onCreateDoc?: () => void;
 };
 
-export const Screen0Landing: React.FC<Props> = ({ onUploadDoc, onNoDoc }) => {
+export const Screen0Landing: React.FC<Props> = ({ onUploadDoc, onNoDoc, onCreateDoc }) => {
   return (
     <div className="onboarding-container">
       <div className="onboarding-card">
@@ -23,6 +24,12 @@ export const Screen0Landing: React.FC<Props> = ({ onUploadDoc, onNoDoc }) => {
         <button className="cta-primary" onClick={onUploadDoc}>
           Upload Your Doc
         </button>
+        
+        {onCreateDoc && (
+          <button className="cta-primary" onClick={onCreateDoc} style={{ marginTop: "1rem" }}>
+            Create Date-Me Doc
+          </button>
+        )}
         
         <button className="cta-secondary" onClick={onNoDoc}>
           I don't have a doc yet.

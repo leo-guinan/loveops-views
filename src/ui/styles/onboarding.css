@@ -377,6 +377,53 @@ body {
   border-color: var(--loveops-primary);
 }
 
+.onboarding-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--loveops-border-soft);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  background: white;
+  font-family: inherit;
+}
+
+.onboarding-input:focus {
+  outline: none;
+  border-color: var(--loveops-primary);
+  box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+}
+
+.onboarding-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--loveops-border-soft);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  background: white;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.onboarding-textarea:focus {
+  outline: none;
+  border-color: var(--loveops-primary);
+  box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+}
+
+.cta-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.cta-primary:disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 16px var(--loveops-shadow-soft);
+}
+
 /* Success screen */
 .success-container {
   text-align: center;
