@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 type Props = {
-  onActivate: () => void;
+  userId: string;
+  email?: string;
+  referralCode?: string;
+  onPaymentComplete: () => void;
   onWhyFee: () => void;
 };
 
@@ -14,11 +17,46 @@ const FEATURES = [
   "Access to the Success Bounty model",
 ];
 
-export const Screen6Paywall: React.FC<Props> = ({ onActivate, onWhyFee }) => {
+export const Screen6Paywall: React.FC<Props> = ({ userId, email, referralCode, onPaymentComplete, onWhyFee }) => {
   const [showClarity, setShowClarity] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleWhyFee = () => {
     setShowClarity(true);
+  };
+
+  const handleActivate = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/payment/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          email: email || "",
+          referralCode: referralCode || "",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create checkout session");
+      }
+
+      const data = await response.json();
+      
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (error) {
+      console.error("Error initiating payment:", error);
+      alert("Failed to start payment process. Please try again.");
+      setLoading(false);
+    }
   };
 
   if (showClarity) {
@@ -67,8 +105,12 @@ export const Screen6Paywall: React.FC<Props> = ({ onActivate, onWhyFee }) => {
           ))}
         </div>
         
-        <button className="cta-primary" onClick={onActivate}>
-          Activate for $100
+        <button 
+          className="cta-primary" 
+          onClick={handleActivate}
+          disabled={loading}
+        >
+          {loading ? "Redirecting to payment..." : "Activate for $100"}
         </button>
         
         <button className="cta-secondary" onClick={handleWhyFee}>

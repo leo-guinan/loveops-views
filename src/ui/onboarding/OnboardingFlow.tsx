@@ -6,7 +6,6 @@ import { Screen3CompatibilityPreview } from "./Screen3CompatibilityPreview";
 import { Screen4SparkIntro } from "./Screen4SparkIntro";
 import { Screen5ArchetypePreview } from "./Screen5ArchetypePreview";
 import { Screen6Paywall } from "./Screen6Paywall";
-import { Screen7Payment } from "./Screen7Payment";
 import { Screen8AccountCreation } from "./Screen8AccountCreation";
 import { Screen9EngineLive } from "./Screen9EngineLive";
 import { Screen10FirstSpark } from "./Screen10FirstSpark";
@@ -38,10 +37,14 @@ type OnboardingState = {
 
 type OnboardingFlowProps = {
   onComplete?: (userId: string) => void;
+  userId?: string | null;
 };
 
-export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
-  const [state, setState] = useState<OnboardingState>({ screen: 0 });
+export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, userId: existingUserId }) => {
+  const [state, setState] = useState<OnboardingState>({ 
+    screen: existingUserId ? 6 : 0, // If returning from payment, start at paywall
+    userId: existingUserId || undefined,
+  });
 
   // Call onComplete when reaching dashboard
   useEffect(() => {
@@ -114,11 +117,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
     setState({ ...state, screen: 6 });
   };
 
-  const handleScreen6Activate = () => {
-    setState({ ...state, screen: 7 });
-  };
-
-  const handleScreen7Complete = () => {
+  const handleScreen6PaymentComplete = () => {
+    // Payment completed via Stripe redirect, proceed to account creation
     setState({ ...state, screen: 8 });
   };
 
@@ -189,12 +189,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         />
       );
     case 6:
-      return <Screen6Paywall onActivate={handleScreen6Activate} onWhyFee={() => {}} />;
-    case 7:
       return (
-        <Screen7Payment
-          onPaymentComplete={handleScreen7Complete}
-          onBack={() => setState({ ...state, screen: 6 })}
+        <Screen6Paywall
+          userId={state.userId || "temp-user"}
+          email={state.accountData?.email}
+          referralCode={state.referralCode}
+          onPaymentComplete={handleScreen6PaymentComplete}
+          onWhyFee={() => {}}
         />
       );
     case 8:

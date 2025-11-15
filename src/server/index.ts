@@ -13,6 +13,7 @@ import { createUserRouter } from "./routes/user";
 import { createMatchesRouter } from "./routes/matches";
 import { createCoachingRouter } from "./routes/coaching";
 import { createAdminRouter } from "./routes/admin";
+import { createPaymentRouter } from "./routes/payment";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ async function createApp(): Promise<Express> {
   app.use("/api/matches", createMatchesRouter(worldModelService, policyService));
   app.use("/api/coaching", createCoachingRouter(policyService));
   app.use("/api/admin", createAdminRouter(worldModelService, policyService));
+  app.use("/api/payment", createPaymentRouter());
 
   // Serve React app for all non-API routes
   app.get("*", (req, res, next) => {
