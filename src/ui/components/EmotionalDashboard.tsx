@@ -1,5 +1,7 @@
 import React from "react";
-import { EmotionalLoadState } from "loveops-world-model";
+// Placeholder import - replace with actual package when available
+// import { EmotionalLoadState } from "loveops-world-model";
+import type { EmotionalLoadState } from "../../types/loveops-world-model";
 
 type Props = {
   emotionalState: EmotionalLoadState;
@@ -26,7 +28,7 @@ export const EmotionalDashboard: React.FC<Props> = ({ emotionalState }) => {
       <div className="trends">
         <h4>Trends</h4>
         <ul>
-          {trends.map((trend, i) => (
+          {trends.map((trend: { direction: "increasing" | "decreasing"; description: string }, i: number) => (
             <li key={i}>
               {trend.direction === "increasing" ? "↑" : "↓"} {trend.description}
             </li>
@@ -38,7 +40,7 @@ export const EmotionalDashboard: React.FC<Props> = ({ emotionalState }) => {
         <div className="risk-factors">
           <h4>Risk Factors</h4>
           <ul>
-            {riskFactors.map((factor, i) => (
+            {riskFactors.map((factor: string, i: number) => (
               <li key={i}>{factor}</li>
             ))}
           </ul>

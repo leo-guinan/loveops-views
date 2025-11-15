@@ -1,9 +1,11 @@
 import express, { Express } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
-import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
-import { CoachingEngine } from "loveops-policy/dist/engines/coaching/CoachingEngine";
+// Placeholder imports - replace with actual packages when available
+// import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
+// import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
+// import { CoachingEngine } from "loveops-policy/dist/engines/coaching/CoachingEngine";
+import { LoveopsRhizomeClient, MatchingEngine, CoachingEngine } from "../types/loveops-policy";
 import { WorldModelService } from "../services/WorldModelService";
 import { PolicyService } from "../services/PolicyService";
 import { createUserRouter } from "./routes/user";

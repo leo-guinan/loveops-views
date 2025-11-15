@@ -5,7 +5,7 @@ import { PolicyService } from "../../services/PolicyService";
 export function createUserRouter(
   worldModel: WorldModelService,
   policy: PolicyService
-) {
+): Router {
   const router = Router();
 
   router.get("/:userId/dashboard", async (req: Request, res: Response) => {

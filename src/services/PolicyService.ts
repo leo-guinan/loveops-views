@@ -1,5 +1,7 @@
-import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
-import { CoachingEngine } from "loveops-policy/dist/engines/coaching/CoachingEngine";
+// Placeholder imports - replace with actual packages when available
+// import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
+// import { CoachingEngine } from "loveops-policy/dist/engines/coaching/CoachingEngine";
+import { MatchingEngine, CoachingEngine } from "../../types/loveops-policy";
 
 export class PolicyService {
   constructor(

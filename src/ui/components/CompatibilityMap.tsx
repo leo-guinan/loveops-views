@@ -1,5 +1,7 @@
 import React from "react";
-import { MatchCompatibilityState } from "loveops-world-model";
+// Placeholder import - replace with actual package when available
+// import { MatchCompatibilityState } from "loveops-world-model";
+import type { MatchCompatibilityState } from "../../types/loveops-world-model";
 
 type Props = {
   compatibility: MatchCompatibilityState;
@@ -20,7 +22,7 @@ export const CompatibilityMap: React.FC<Props> = ({ compatibility }) => {
       </ul>
       <h4>Why this match?</h4>
       <ul>
-        {explanation.map((line, i) => (
+        {explanation.map((line: string, i: number) => (
           <li key={i}>{line}</li>
         ))}
       </ul>

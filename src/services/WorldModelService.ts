@@ -1,17 +1,22 @@
-import {
-  LoveopsRhizomeClient,
-} from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
-import {
+// Placeholder imports - replace with actual packages when available
+// import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
+import { LoveopsRhizomeClient } from "../../types/loveops-policy";
+import type {
   UserProfileState,
   InteractionHistoryState,
   EmotionalLoadState,
   TrustSafetyState,
-} from "loveops-world-model";
+} from "../../types/loveops-world-model";
 
 export class WorldModelService {
   constructor(private client: LoveopsRhizomeClient) {}
 
-  async getUserDashboardState(userId: string) {
+  async getUserDashboardState(userId: string): Promise<{
+    profile: UserProfileState;
+    interaction: InteractionHistoryState;
+    emotional: EmotionalLoadState;
+    safety: TrustSafetyState;
+  }> {
     const events = await this.client.getEventsForUser(userId);
 
     const profile = await this.client.evalView<UserProfileState>(

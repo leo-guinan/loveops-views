@@ -5,7 +5,7 @@ import { PolicyService } from "../../services/PolicyService";
 export function createMatchesRouter(
   worldModel: WorldModelService,
   policy: PolicyService
-) {
+): Router {
   const router = Router();
 
   router.get("/:matchId/compatibility", async (req: Request, res: Response) => {

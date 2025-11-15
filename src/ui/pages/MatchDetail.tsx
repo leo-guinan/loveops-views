@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { CompatibilityMap } from "../components/CompatibilityMap";
-import { MatchCompatibilityState } from "loveops-world-model";
+// Placeholder import - replace with actual package when available
+// import { MatchCompatibilityState } from "loveops-world-model";
+import type { MatchCompatibilityState } from "../../types/loveops-world-model";
 
 type Props = {
   matchId: string;

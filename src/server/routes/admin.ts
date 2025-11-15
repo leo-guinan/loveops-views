@@ -5,7 +5,7 @@ import { PolicyService } from "../../services/PolicyService";
 export function createAdminRouter(
   worldModel: WorldModelService,
   policy: PolicyService
-) {
+): Router {
   const router = Router();
 
   // Health check endpoint

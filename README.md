@@ -43,6 +43,15 @@ pnpm install
 pnpm dev
 ```
 
+**Note:** This repository uses placeholder type definitions for `loveops-policy` and `loveops-world-model` packages. When these packages are available, update the imports in:
+- `src/server/index.ts`
+- `src/services/WorldModelService.ts`
+- `src/services/PolicyService.ts`
+- `src/ui/components/*.tsx`
+- `src/ui/pages/*.tsx`
+
+Replace imports from `../../types/loveops-*` with the actual package imports.
+
 ## Environment Variables
 
 Create a `.env` file:

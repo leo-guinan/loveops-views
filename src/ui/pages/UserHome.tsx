@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { MatchList } from "../components/MatchList";
 import { EmotionalDashboard } from "../components/EmotionalDashboard";
-import { UserProfileState, EmotionalLoadState } from "loveops-world-model";
+// Placeholder imports - replace with actual package when available
+// import { UserProfileState, EmotionalLoadState } from "loveops-world-model";
+import type { UserProfileState, EmotionalLoadState } from "../../types/loveops-world-model";
 
 type DashboardState = {
   profile: UserProfileState;

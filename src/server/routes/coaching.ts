@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { PolicyService } from "../../services/PolicyService";
 
-export function createCoachingRouter(policy: PolicyService) {
+export function createCoachingRouter(policy: PolicyService): Router {
   const router = Router();
 
   router.get("/:userId/insights", async (req: Request, res: Response) => {
