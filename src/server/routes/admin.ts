@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
+import { createAdminObservabilityRouter } from "./admin-observability";
 
 export function createAdminRouter(
   worldModel: WorldModelService,
@@ -35,6 +36,10 @@ export function createAdminRouter(
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
+
+  // Add observability routes
+  const queuesDir = process.env.VQ_QUEUES_DIR || '/var/queues';
+  router.use('/', createAdminObservabilityRouter(queuesDir));
 
   return router;
 }
