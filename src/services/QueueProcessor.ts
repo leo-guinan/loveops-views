@@ -32,22 +32,41 @@ export abstract class QueueProcessor {
     // Load queue configs from environment variable
     const configJson = process.env.VQ_QUEUE_CONFIG || "[]";
     try {
-      this.configs = JSON.parse(configJson) as QueueConfig[];
+      const parsed = JSON.parse(configJson);
+      // Ensure it's an array
+      this.configs = Array.isArray(parsed) ? parsed : [];
     } catch (error) {
       console.error("Failed to parse VQ_QUEUE_CONFIG:", error);
       this.configs = [];
     }
+    
+    // Validate configs are valid
+    this.configs = this.configs.filter((config) => {
+      return config && typeof config === "object" && config.name && config.path && config.processor;
+    });
   }
 
   /**
    * Start processing queues assigned to this service
    */
   start(serviceName: string = "views") {
+    // Ensure configs is an array
+    if (!Array.isArray(this.configs)) {
+      console.warn("VQ_QUEUE_CONFIG is not a valid array, using empty config");
+      this.configs = [];
+    }
+
     const assignedQueues = this.configs.filter(
-      (config) => config.processor === serviceName || config.processor === "both"
+      (config) => config && (config.processor === serviceName || config.processor === "both")
     );
 
     console.log(`Starting queue processor for service: ${serviceName}`);
+    
+    if (assignedQueues.length === 0) {
+      console.warn(`No queues assigned to service: ${serviceName}. Check VQ_QUEUE_CONFIG environment variable.`);
+      return;
+    }
+
     console.log(`Assigned queues: ${assignedQueues.map((q) => q.name).join(", ")}`);
 
     for (const config of assignedQueues) {
