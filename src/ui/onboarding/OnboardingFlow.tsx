@@ -92,13 +92,17 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
   const handleScreen0CreateDoc = () => {
     setState({ ...state, creatingDoc: true });
   };
-  const handleDateMeDocComplete = (docText: string) => {
+  const handleDateMeDocComplete = async (docText: string) => {
     // Date-Me Doc created, now treat it as if it was uploaded
     // Create a file from the text and proceed to processing
     const blob = new Blob([docText], { type: "text/plain" });
     const file = new File([blob], "date-me-doc.txt", { type: "text/plain" });
-    handleScreen1Upload(file);
-    setState({ ...state, creatingDoc: false, screen: 2 });
+    
+    // Close the doc creation flow - handleScreen1Upload will handle screen transition
+    setState((prevState) => ({ ...prevState, creatingDoc: false }));
+    
+    // Upload and process the file (this will set screen to 2 and start processing)
+    await handleScreen1Upload(file);
   };
   const handleDateMeDocCancel = () => {
     setState({ ...state, creatingDoc: false, screen: 0 });
@@ -151,16 +155,16 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
         
         if (data.status === "completed" && data.results) {
           // Processing complete, store results
-          setState({
-            ...state,
+          setState((prevState) => ({
+            ...prevState,
             screen: 2,
-            uploadedFile: state.uploadedFile,
+            uploadedFile: prevState.uploadedFile,
             isProcessing: false,
             compatibility: data.results.compatibility,
             sparkIntro: data.results.sparkIntro,
             archetype: data.results.archetype,
             userId: data.results.userId || userId,
-          });
+          }));
         } else if (data.status === "failed") {
           throw new Error(data.error || "Document processing failed");
         } else {
@@ -185,10 +189,18 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
 
   const handleScreen2Complete = () => {
     // Move to compatibility preview with the processed data
-    setState({
-      ...state,
-      screen: 3,
-      // compatibility, sparkIntro, archetype should already be set from API response
+    // Only advance if compatibility data is available
+    setState((prevState) => {
+      if (prevState.compatibility) {
+        return {
+          ...prevState,
+          screen: 3,
+        };
+      } else {
+        // Data not ready yet, stay on processing screen
+        console.log("Waiting for compatibility data...");
+        return prevState;
+      }
     });
   };
 
@@ -279,9 +291,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     case 2:
       return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
     case 3:
+      if (!state.compatibility) {
+        // Compatibility data not ready yet, stay on processing screen
+        return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
+      }
       return (
         <Screen3CompatibilityPreview
-          compatibility={state.compatibility!}
+          compatibility={state.compatibility}
           onContinue={handleScreen3Continue}
         />
       );
