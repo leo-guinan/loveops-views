@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 
 type Props = {
   onComplete: () => void;
+  isProcessing?: boolean; // If true, wait for processing to complete
 };
 
 const PROCESSING_STEPS = [
@@ -12,23 +13,26 @@ const PROCESSING_STEPS = [
   "Calibrating your compatibility vectors…",
 ];
 
-export const Screen2Processing: React.FC<Props> = ({ onComplete }) => {
+export const Screen2Processing: React.FC<Props> = ({ onComplete, isProcessing = false }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
-    if (currentStep < PROCESSING_STEPS.length) {
-      const timer = setTimeout(() => {
-        setCurrentStep(currentStep + 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      // Wait a bit before completing
+    // If processing is complete, show all steps and complete
+    if (!isProcessing && currentStep >= PROCESSING_STEPS.length) {
       const timer = setTimeout(() => {
         onComplete();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, onComplete]);
+
+    // Animate through steps
+    if (currentStep < PROCESSING_STEPS.length) {
+      const timer = setTimeout(() => {
+        setCurrentStep(currentStep + 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, isProcessing, onComplete]);
 
   return (
     <div className="onboarding-container">

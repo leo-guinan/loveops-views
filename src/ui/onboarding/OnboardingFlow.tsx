@@ -15,6 +15,7 @@ import { Screen12Dashboard } from "./Screen12Dashboard";
 type OnboardingState = {
   screen: number;
   uploadedFile?: File;
+  isProcessing?: boolean;
   compatibility?: {
     emotionalRhythm: string;
     communication: string;
@@ -31,8 +32,10 @@ type OnboardingState = {
     pronouns: string;
     city: string;
     pacing: string;
+    email?: string;
   };
   userId?: string;
+  referralCode?: string;
 };
 
 type OnboardingFlowProps = {
@@ -85,15 +88,91 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     setState({ ...state, screen: 1 });
   };
 
-  const handleScreen1Upload = (file: File) => {
-    setState({ ...state, screen: 2, uploadedFile: file });
+  const handleScreen1Upload = async (file: File) => {
+    // Move to processing screen immediately
+    const tempUserId = state.userId || `temp-${Date.now()}`;
+    setState({ ...state, screen: 2, uploadedFile: file, isProcessing: true });
+    
+    // Upload and enqueue the file
+    try {
+      const formData = new FormData();
+      formData.append("doc", file);
+      formData.append("userId", tempUserId);
+
+      const response = await fetch("/api/onboarding/process-doc", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to enqueue document");
+      }
+
+      const data = await response.json();
+      
+      // Job is queued, now poll for results
+      pollJobStatus(data.jobId, tempUserId);
+    } catch (error) {
+      console.error("Error enqueueing document:", error);
+      alert("Failed to queue your document for processing. Please try again.");
+      setState({ ...state, screen: 1, isProcessing: false }); // Go back to upload screen
+    }
+  };
+
+  const pollJobStatus = async (jobId: string, userId: string) => {
+    const maxAttempts = 60; // Poll for up to 60 seconds
+    let attempts = 0;
+    
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/onboarding/job-status/${jobId}`);
+        
+        if (!response.ok) {
+          throw new Error("Failed to check job status");
+        }
+
+        const data = await response.json();
+        
+        if (data.status === "completed" && data.results) {
+          // Processing complete, store results
+          setState({
+            ...state,
+            screen: 2,
+            uploadedFile: state.uploadedFile,
+            isProcessing: false,
+            compatibility: data.results.compatibility,
+            sparkIntro: data.results.sparkIntro,
+            archetype: data.results.archetype,
+            userId: data.results.userId || userId,
+          });
+        } else if (data.status === "failed") {
+          throw new Error(data.error || "Document processing failed");
+        } else {
+          // Still processing, poll again
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 1000); // Poll every second
+          } else {
+            throw new Error("Processing timeout - please try again");
+          }
+        }
+      } catch (error) {
+        console.error("Error polling job status:", error);
+        alert("Failed to check processing status. Please try again.");
+        setState({ ...state, screen: 1, isProcessing: false });
+      }
+    };
+
+    // Start polling after a short delay
+    setTimeout(poll, 2000);
   };
 
   const handleScreen2Complete = () => {
+    // Move to compatibility preview with the processed data
     setState({
       ...state,
       screen: 3,
-      compatibility: generateCompatibility(),
+      // compatibility, sparkIntro, archetype should already be set from API response
     });
   };
 
@@ -166,7 +245,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     case 1:
       return <Screen1DocUpload onDocUploaded={handleScreen1Upload} onBack={() => setState({ ...state, screen: 0 })} />;
     case 2:
-      return <Screen2Processing onComplete={handleScreen2Complete} />;
+      return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
     case 3:
       return (
         <Screen3CompatibilityPreview

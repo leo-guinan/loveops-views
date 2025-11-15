@@ -81,6 +81,7 @@ RHIZOME_NODE_URL=http://localhost:3001
 PORT=3000
 BASE_URL=http://localhost:3000
 STRIPE_SECRET_KEY=sk_test_...
+QUEUE_PATH=/var/queues/loveops-events-ingest/ready
 ```
 
 ## Development
