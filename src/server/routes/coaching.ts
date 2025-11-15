@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
 import { PolicyService } from "../../services/PolicyService";
+import { QueueService } from "../../services/QueueService";
 
 export function createCoachingRouter(policy: PolicyService): Router {
   const router = Router();
+  const queueService = new QueueService();
 
   router.get("/:userId/insights", async (req: Request, res: Response) => {
     try {
@@ -19,11 +21,18 @@ export function createCoachingRouter(policy: PolicyService): Router {
     try {
       const { userId, matchId } = req.params;
       const { context } = req.body; // optional context for message suggestion
-      const suggestion = await policy.suggestMessage(matchId, userId);
-      res.json(suggestion);
+      
+      // Enqueue coaching job to loveops-policy-coaching queue
+      const jobId = await queueService.enqueueCoachingJob(matchId, userId);
+      
+      res.json({
+        jobId,
+        status: "queued",
+        message: "Message suggestion job queued. Results will be available shortly.",
+      });
     } catch (error) {
-      console.error("Error suggesting message:", error);
-      res.status(500).json({ error: "Failed to suggest message" });
+      console.error("Error enqueueing coaching job:", error);
+      res.status(500).json({ error: "Failed to enqueue coaching job" });
     }
   });
 

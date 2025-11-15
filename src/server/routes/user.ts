@@ -1,12 +1,14 @@
 import { Router, Request, Response } from "express";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
+import { QueueService } from "../../services/QueueService";
 
 export function createUserRouter(
   worldModel: WorldModelService,
   policy: PolicyService
 ): Router {
   const router = Router();
+  const queueService = new QueueService();
 
   router.get("/:userId/dashboard", async (req: Request, res: Response) => {
     try {
@@ -22,26 +24,38 @@ export function createUserRouter(
   router.post("/:userId/matches/recommend", async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const recs = await policy.recommendMatchesForUser(userId);
-      res.json(recs);
+      
+      // Enqueue matching job to loveops-policy-matching queue
+      // Views service will process this in-process
+      const jobId = await queueService.enqueueMatchingJob(userId);
+      
+      res.json({
+        jobId,
+        status: "queued",
+        message: "Match recommendation job queued. Results will be available shortly.",
+      });
     } catch (error) {
-      console.error("Error recommending matches:", error);
-      res.status(500).json({ error: "Failed to recommend matches" });
+      console.error("Error enqueueing matching job:", error);
+      res.status(500).json({ error: "Failed to enqueue matching job" });
     }
   });
 
   router.post("/:userId/matches/:matchId/suggest-opener", async (req: Request, res: Response) => {
     try {
       const { userId, matchId } = req.params;
-      const suggestion = await policy.suggestMessage(matchId, userId);
+      
+      // Enqueue coaching job to loveops-policy-coaching queue
+      // Views service will process this in-process
+      const jobId = await queueService.enqueueCoachingJob(matchId, userId);
+      
       res.json({
-        suggestion: suggestion.text,
-        tone: suggestion.tone,
-        rationale: suggestion.rationale,
+        jobId,
+        status: "queued",
+        message: "Message suggestion job queued. Results will be available shortly.",
       });
     } catch (error) {
-      console.error("Error suggesting opener:", error);
-      res.status(500).json({ error: "Failed to suggest opener" });
+      console.error("Error enqueueing coaching job:", error);
+      res.status(500).json({ error: "Failed to enqueue coaching job" });
     }
   });
 

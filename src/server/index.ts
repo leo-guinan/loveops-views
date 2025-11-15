@@ -9,6 +9,7 @@ import path from "path";
 import { LoveopsRhizomeClient, MatchingEngine, CoachingEngine } from "../types/loveops-policy";
 import { WorldModelService } from "../services/WorldModelService";
 import { PolicyService } from "../services/PolicyService";
+import { ViewsQueueProcessor } from "../services/ViewsQueueProcessor";
 import { createUserRouter } from "./routes/user";
 import { createMatchesRouter } from "./routes/matches";
 import { createCoachingRouter } from "./routes/coaching";
@@ -39,6 +40,10 @@ async function createApp(): Promise<Express> {
   const matchingEngine = new MatchingEngine(rhizomeClient);
   const coachingEngine = new CoachingEngine(rhizomeClient);
   const policyService = new PolicyService(matchingEngine, coachingEngine);
+
+  // Start in-process queue processor
+  const queueProcessor = new ViewsQueueProcessor(worldModelService, policyService);
+  queueProcessor.start("views");
 
   // Routes
   app.use("/api/user", createUserRouter(worldModelService, policyService));

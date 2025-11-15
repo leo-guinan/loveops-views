@@ -56,7 +56,8 @@ export class QueueService {
   }
 
   /**
-   * Enqueue a document processing job
+   * Enqueue a document processing job to loveops-events-ingest queue
+   * This queue is processed by world-model service
    */
   async enqueueDocumentProcessing(
     userId: string,
@@ -67,10 +68,8 @@ export class QueueService {
       size: number;
     }
   ): Promise<string> {
-    // Store file data temporarily or pass reference
-    // For now, we'll include metadata and let the worker fetch the file
-    // In production, you might want to store the file in S3 or similar first
-    
+    // Enqueue to loveops-events-ingest queue (processed by world-model)
+    // The world-model service will process this and extract events from the document
     const jobPayload = {
       userId,
       file: {
@@ -80,9 +79,112 @@ export class QueueService {
         // Store base64 encoded buffer for now (or use file storage)
         data: fileData.buffer.toString("base64"),
       },
+      type: "document_upload",
     };
 
     return this.enqueue("document_processing", jobPayload);
+  }
+
+  /**
+   * Enqueue a matching job to loveops-policy-matching queue
+   * This queue is processed by views service (in-process)
+   */
+  async enqueueMatchingJob(userId: string): Promise<string> {
+    const jobPayload = {
+      userId,
+    };
+
+    // Use the matching queue path
+    const matchingQueuePath = process.env.QUEUE_PATH?.replace(
+      "loveops-events-ingest",
+      "loveops-policy-matching"
+    ) || "/var/queues/loveops-policy-matching/ready";
+
+    return this.enqueueToPath(matchingQueuePath, "matching_request", jobPayload);
+  }
+
+  /**
+   * Enqueue a coaching job to loveops-policy-coaching queue
+   * This queue is processed by views service (in-process)
+   */
+  async enqueueCoachingJob(matchId: string, senderId: string): Promise<string> {
+    const jobPayload = {
+      matchId,
+      senderId,
+    };
+
+    const coachingQueuePath = process.env.QUEUE_PATH?.replace(
+      "loveops-events-ingest",
+      "loveops-policy-coaching"
+    ) || "/var/queues/loveops-policy-coaching/ready";
+
+    return this.enqueueToPath(coachingQueuePath, "coaching_request", jobPayload);
+  }
+
+  /**
+   * Enqueue a notification job to loveops-notifications queue
+   * This queue is processed by views service (in-process)
+   */
+  async enqueueNotificationJob(
+    userId: string,
+    type: string,
+    payload: any
+  ): Promise<string> {
+    const jobPayload = {
+      userId,
+      type,
+      payload,
+    };
+
+    const notificationsQueuePath = process.env.QUEUE_PATH?.replace(
+      "loveops-events-ingest",
+      "loveops-notifications"
+    ) || "/var/queues/loveops-notifications/ready";
+
+    return this.enqueueToPath(notificationsQueuePath, "notification", jobPayload);
+  }
+
+  /**
+   * Helper to enqueue to a specific path without creating a new instance
+   */
+  private async enqueueToPath(queuePath: string, jobType: string, payload: any): Promise<string> {
+    // Ensure directory exists
+    try {
+      if (!fs.existsSync(queuePath)) {
+        fs.mkdirSync(queuePath, { recursive: true });
+      }
+    } catch (error) {
+      console.error(`Failed to create queue directory ${queuePath}:`, error);
+      // Fallback to local queue directory if /var/queues doesn't exist
+      if (queuePath.startsWith("/var/")) {
+        const queueName = queuePath.split("/").slice(-2, -1)[0]; // Extract queue name
+        const localPath = path.join(process.cwd(), "queues", queueName, "ready");
+        queuePath = localPath;
+        fs.mkdirSync(queuePath, { recursive: true });
+        console.log(`Using local queue directory: ${queuePath}`);
+      }
+    }
+
+    const jobId = randomUUID();
+    const jobData = {
+      id: jobId,
+      type: jobType,
+      payload,
+      createdAt: new Date().toISOString(),
+      status: "ready",
+    };
+
+    const fileName = `${jobId}.json`;
+    const filePath = path.join(queuePath, fileName);
+
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(jobData, null, 2), "utf-8");
+      console.log(`Job enqueued: ${jobId} to ${filePath}`);
+      return jobId;
+    } catch (error) {
+      console.error(`Failed to enqueue job: ${error}`);
+      throw new Error(`Failed to enqueue job: ${error}`);
+    }
   }
 }
 

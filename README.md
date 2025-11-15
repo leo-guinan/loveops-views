@@ -82,6 +82,7 @@ PORT=3000
 BASE_URL=http://localhost:3000
 STRIPE_SECRET_KEY=sk_test_...
 QUEUE_PATH=/var/queues/loveops-events-ingest/ready
+VQ_QUEUE_CONFIG=[{"name":"loveops-policy-matching","path":"/var/queues/loveops-policy-matching","processor":"views"},{"name":"loveops-policy-coaching","path":"/var/queues/loveops-policy-coaching","processor":"views"},{"name":"loveops-notifications","path":"/var/queues/loveops-notifications","processor":"views"},{"name":"loveops-metrics","path":"/var/queues/loveops-metrics","processor":"both"}]
 ```
 
 ## Development
