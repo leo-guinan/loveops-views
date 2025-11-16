@@ -46,7 +46,7 @@ export const Screen6Paywall: React.FC<Props> = ({ userId, email, referralCode, o
     setLoading(true);
     try {
       // Use authenticated user's email if available
-      const userEmail = email || user?.twitterUsername ? `${user.twitterUsername}@twitter` : undefined;
+      const userEmail = email || (user?.twitterUsername ? `${user.twitterUsername}@twitter` : undefined);
       
       const response = await fetch("/api/payment/checkout", {
         method: "POST",
