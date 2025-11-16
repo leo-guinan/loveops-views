@@ -54,18 +54,39 @@ export class DocumentAnalysisService {
    * Analyze a document and extract compatibility insights using LLM
    */
   async analyzeDocument(documentText: string): Promise<ProfileInsights> {
-    // Decode base64 if needed
+    // Decode base64 if needed (check if it looks like base64)
     let text = documentText;
-    try {
-      // Try to decode as base64 first
-      const decoded = Buffer.from(documentText, 'base64').toString('utf-8');
-      if (decoded && decoded.length > 0) {
-        text = decoded;
+    
+    // Check if text looks like base64 (contains only base64 chars and is reasonably long)
+    const base64Regex = /^[A-Za-z0-9+/=]+$/;
+    const looksLikeBase64 = base64Regex.test(documentText.trim()) && documentText.length > 100;
+    
+    if (looksLikeBase64) {
+      try {
+        const decoded = Buffer.from(documentText, 'base64').toString('utf-8');
+        // Verify it decoded to something readable (contains letters/spaces)
+        if (decoded && decoded.length > 0 && /[a-zA-Z\s]/.test(decoded)) {
+          text = decoded;
+          console.log(`✅ Decoded base64 document (${documentText.length} → ${text.length} chars)`);
+        } else {
+          console.warn(`⚠️  Base64 decode produced non-readable text, using as-is`);
+        }
+      } catch (error) {
+        console.warn(`⚠️  Failed to decode base64, using as-is:`, error);
+        // Not base64, use as-is
+        text = documentText;
       }
-    } catch {
-      // Not base64, use as-is
+    } else {
+      // Already decoded or plain text
       text = documentText;
     }
+    
+    // Validate we have readable text
+    if (!text || text.trim().length < 10) {
+      throw new Error("Document text is too short or empty");
+    }
+    
+    console.log(`📄 Analyzing document (${text.length} chars, preview: ${text.substring(0, 100)}...)`);
 
     // If OpenRouter is not configured, fall back to pattern matching
     if (!process.env.OPENROUTER_API_KEY) {

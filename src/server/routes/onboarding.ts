@@ -125,12 +125,27 @@ export function createOnboardingRouter(
         let insights = null;
         if (jobPayload?.file?.data) {
           try {
-            // Decode document text
-            const documentText = Buffer.from(jobPayload.file.data, 'base64').toString('utf-8');
+            // Decode document text from base64
+            let documentText: string;
+            try {
+              documentText = Buffer.from(jobPayload.file.data, 'base64').toString('utf-8');
+              console.log(`📄 Decoded document: ${documentText.length} chars, preview: ${documentText.substring(0, 100)}...`);
+              
+              // Validate decoded text is readable
+              if (!documentText || documentText.trim().length < 10) {
+                throw new Error("Decoded document text is too short or empty");
+              }
+            } catch (decodeError) {
+              console.error("Error decoding document from base64:", decodeError);
+              // Try using as-is (might already be decoded)
+              documentText = jobPayload.file.data;
+            }
+            
             // Analyze document to extract compatibility insights
             insights = await documentAnalysis.analyzeDocument(documentText);
           } catch (error) {
             console.error("Error analyzing document:", error);
+            console.error("Error details:", error instanceof Error ? error.message : String(error));
             // Fallback to basic success message
             insights = {
               compatibility: {
@@ -140,6 +155,8 @@ export function createOnboardingRouter(
               },
             };
           }
+        } else {
+          console.warn("⚠️  Job payload missing file.data");
         }
         
         results = {
