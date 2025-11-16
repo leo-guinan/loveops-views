@@ -90,6 +90,20 @@ async function createApp(): Promise<Express> {
     res.sendFile(indexPath);
   });
 
+  // Error handling middleware (must be last)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("❌ Unhandled error:", err);
+    console.error("   Stack:", err.stack);
+    
+    // Don't leak error details in production
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    
+    res.status(err.status || 500).json({
+      error: err.message || "Internal Server Error",
+      ...(isDevelopment && { stack: err.stack, details: err }),
+    });
+  });
+
   return app;
 }
 
