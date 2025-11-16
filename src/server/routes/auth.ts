@@ -129,9 +129,8 @@ export function createAuthRouter(
     }
   });
 
-  // Initialize Passport
-  router.use(passport.initialize());
-  router.use(passport.session());
+  // Note: Passport middleware is initialized in server/index.ts
+  // We don't initialize it here to avoid double initialization
 
   /**
    * GET /api/auth/twitter
@@ -364,8 +363,21 @@ export function createAuthRouter(
             console.error("❌ Error creating session:", loginErr);
             return res.redirect(`/login?error=session_failed`);
           }
-          // Success - redirect to home
-          return res.redirect("/");
+          
+          console.log(`✅ Passport login successful for user: ${user.userId}`);
+          console.log(`   Session ID: ${req.sessionID}`);
+          console.log(`   User serialized: ${user.userId}`);
+          
+          // Save session before redirect to ensure it's persisted
+          req.session.save((saveErr) => {
+            if (saveErr) {
+              console.error("❌ Error saving session after login:", saveErr);
+              return res.redirect(`/login?error=session_save_failed`);
+            }
+            console.log(`💾 Session saved after login`);
+            // Success - redirect to home
+            return res.redirect("/");
+          });
         });
       } catch (error: any) {
         console.error("❌ Twitter OAuth 2.0 callback error:", error);
@@ -379,7 +391,13 @@ export function createAuthRouter(
    * Get current authenticated user
    */
   router.get("/me", (req: Request, res: Response) => {
+    console.log(`🔍 /api/auth/me called - Session ID: ${req.sessionID}`);
+    console.log(`   Cookie header: ${req.headers.cookie ? "present" : "missing"}`);
+    console.log(`   req.user: ${req.user ? "present" : "null"}`);
+    console.log(`   Session exists: ${!!req.session}`);
+    
     if (req.user) {
+      console.log(`✅ User authenticated: ${req.user.userId} (@${req.user.twitterUsername})`);
       res.json({
         authenticated: true,
         user: {
@@ -390,6 +408,8 @@ export function createAuthRouter(
         },
       });
     } else {
+      console.log(`❌ User not authenticated - req.user is null`);
+      console.log(`   This usually means passport.deserializeUser didn't populate req.user`);
       res.status(401).json({
         authenticated: false,
         error: "Not authenticated",

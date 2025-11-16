@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import session from "express-session";
+import passport from "passport";
 // Placeholder imports - replace with actual packages when available
 // import { LoveopsRhizomeClient } from "loveops-policy/dist/adapters/rhizome/LoveopsRhizomeClient";
 // import { MatchingEngine } from "loveops-policy/dist/engines/matching/MatchingEngine";
@@ -64,6 +65,10 @@ async function createApp(): Promise<Express> {
     }
     next();
   });
+  
+  // Initialize Passport middleware - MUST be after session but before routes
+  app.use(passport.initialize());
+  app.use(passport.session());
   
   // Serve static files from dist/public (built React app) or public (fallback)
   app.use(express.static("dist/public"));
