@@ -58,9 +58,9 @@ async function createApp(): Promise<Express> {
   
   // Log session creation for debugging
   app.use((req, res, next) => {
-    if (req.session && !req.session.initialized) {
-      req.session.initialized = true;
-      console.log(`📝 New session created: ${req.sessionID}`);
+    if (req.session && !(req.session as any).logged) {
+      (req.session as any).logged = true;
+      console.log(`📝 Session accessed: ${req.sessionID} (cookie: ${req.headers.cookie ? "present" : "missing"})`);
     }
     next();
   });
