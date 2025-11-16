@@ -47,10 +47,38 @@ type OnboardingFlowProps = {
 };
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, userId: existingUserId }) => {
+  // Check if returning from payment success
+  const paymentComplete = typeof window !== 'undefined' && sessionStorage.getItem("loveops_paymentComplete") === "true";
+  const storedUserId = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_userId") : null;
+  
+  // Restore compatibility data if returning from payment
+  const storedCompatibility = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_compatibility") : null;
+  const storedSparkIntro = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_sparkIntro") : null;
+  const storedArchetype = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_archetype") : null;
+  const storedFinalReport = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_finalReport") : null;
+  
+  // Determine initial screen: if payment complete, show compatibility report (screen 3)
+  // Otherwise, if userId exists, show paywall (screen 6), else start at beginning (screen 0)
+  const initialScreen = paymentComplete ? 3 : (existingUserId || storedUserId ? 6 : 0);
+  const initialUserId = existingUserId || storedUserId || undefined;
+  
   const [state, setState] = useState<OnboardingState>({ 
-    screen: existingUserId ? 6 : 0, // If returning from payment, start at paywall
-    userId: existingUserId || undefined,
+    screen: initialScreen,
+    userId: initialUserId,
+    // Restore compatibility data if available
+    compatibility: storedCompatibility ? JSON.parse(storedCompatibility) : undefined,
+    sparkIntro: storedSparkIntro || undefined,
+    archetype: storedArchetype ? JSON.parse(storedArchetype) : undefined,
+    finalReport: storedFinalReport || undefined,
   });
+  
+  // Clear payment flags and restore data after loading
+  useEffect(() => {
+    if (paymentComplete && typeof window !== 'undefined') {
+      sessionStorage.removeItem("loveops_paymentComplete");
+      // Keep userId and compatibility data for now, will be cleared when onboarding completes
+    }
+  }, [paymentComplete]);
 
   // Call onComplete when reaching dashboard
   useEffect(() => {
@@ -162,6 +190,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
           const sparkIntro = data.results?.sparkIntro || generateSparkIntro();
           const archetype = data.results?.archetype || generateArchetype();
           const finalReport = data.results?.finalReport;
+          
+          // Store compatibility data in sessionStorage so it persists after payment redirect
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem("loveops_compatibility", JSON.stringify(compatibility));
+            sessionStorage.setItem("loveops_sparkIntro", sparkIntro || "");
+            sessionStorage.setItem("loveops_archetype", JSON.stringify(archetype || {}));
+            sessionStorage.setItem("loveops_finalReport", finalReport || "");
+            sessionStorage.setItem("loveops_userId", userId);
+          }
           
           setState((prevState) => ({
             ...prevState,
@@ -310,6 +347,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
       return (
         <Screen3CompatibilityPreview
           compatibility={state.compatibility}
+          finalReport={state.finalReport}
           onContinue={handleScreen3Continue}
         />
       );

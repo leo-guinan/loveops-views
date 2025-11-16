@@ -48,6 +48,9 @@ const AppContent: React.FC = () => {
       setPaymentSessionId(sessionId);
       setCurrentUserId(userId);
       setAppState("payment-success");
+      // Store userId in sessionStorage to preserve it after redirect
+      sessionStorage.setItem("loveops_userId", userId);
+      sessionStorage.setItem("loveops_paymentComplete", "true");
     } else if (path === "/payment/cancel" && userId) {
       setCurrentUserId(userId);
       setAppState("payment-cancel");
@@ -75,10 +78,12 @@ const AppContent: React.FC = () => {
   };
 
   const handlePaymentComplete = () => {
-    // Clear URL params and proceed to account creation
+    // Clear URL params and proceed to show compatibility report
+    // Preserve the userId and onboarding state
     window.history.replaceState({}, "", "/");
     setAppState("onboarding");
-    // The onboarding flow will continue from where it left off
+    // The onboarding flow will continue from screen 3 (compatibility preview)
+    // with the userId preserved
   };
 
   const handlePaymentCancel = () => {
