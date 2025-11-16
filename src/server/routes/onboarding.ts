@@ -5,6 +5,7 @@ import * as path from "path";
 import { WorldModelService } from "../../services/WorldModelService";
 import { PolicyService } from "../../services/PolicyService";
 import { QueueService } from "../../services/QueueService";
+import { DocumentAnalysisService } from "../../services/DocumentAnalysisService";
 import { getAuthenticatedUserId } from "./auth";
 
 // Configure multer for file uploads
@@ -35,6 +36,7 @@ export function createOnboardingRouter(
 ): Router {
   const router = Router();
   const queueService = new QueueService();
+  const documentAnalysis = new DocumentAnalysisService();
 
   // Process Date-Me Doc upload - enqueue to VibeQueue
   router.post("/process-doc", upload.single("doc"), async (req: Request, res: Response) => {
@@ -117,13 +119,35 @@ export function createOnboardingRouter(
       
       if (jobState === "done") {
         status = "completed";
-        // For document uploads, the event has been ingested
-        // We could fetch the user's profile from world model here
-        // For now, return success
+        
+        // Extract insights from the processed job
+        // The job payload contains the document data
+        let insights = null;
+        if (jobPayload?.file?.data) {
+          try {
+            // Decode document text
+            const documentText = Buffer.from(jobPayload.file.data, 'base64').toString('utf-8');
+            // Analyze document to extract compatibility insights
+            insights = await documentAnalysis.analyzeDocument(documentText);
+          } catch (error) {
+            console.error("Error analyzing document:", error);
+            // Fallback to basic success message
+            insights = {
+              compatibility: {
+                emotionalRhythm: "Document processed successfully.",
+                communication: "Your profile has been created.",
+                preferences: "Ready to find matches.",
+              },
+            };
+          }
+        }
+        
         results = {
           success: true,
           message: "Document processed successfully",
-          // TODO: Fetch actual results from world model if needed
+          ...insights,
+          // Include finalReport if available
+          finalReport: insights?.finalReport,
         };
       } else if (jobState === "dead") {
         status = "failed";

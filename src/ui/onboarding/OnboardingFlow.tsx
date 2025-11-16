@@ -28,6 +28,7 @@ type OnboardingState = {
     title: string;
     traits: string[];
   };
+  finalReport?: string;
   accountData?: {
     photo?: File;
     name: string;
@@ -156,11 +157,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
         console.log(`Job ${jobId} status: ${data.status} (queue state: ${data.queueState})`);
         
         if (data.status === "completed") {
-          // Processing complete - event has been ingested into world model
-          // Generate mock results for now (in production, fetch from world model)
-          const compatibility = generateCompatibility();
-          const sparkIntro = generateSparkIntro();
-          const archetype = generateArchetype();
+          // Processing complete - use actual results from document analysis
+          const compatibility = data.results?.compatibility || generateCompatibility();
+          const sparkIntro = data.results?.sparkIntro || generateSparkIntro();
+          const archetype = data.results?.archetype || generateArchetype();
+          const finalReport = data.results?.finalReport;
           
           setState((prevState) => ({
             ...prevState,
@@ -170,6 +171,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
             compatibility,
             sparkIntro,
             archetype,
+            finalReport,
             userId: userId,
           }));
         } else if (data.status === "failed") {
