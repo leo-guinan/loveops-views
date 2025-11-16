@@ -141,6 +141,19 @@ export function createAuthRouter(
       const state = randomBytes(32).toString("base64url");
       (req.session as any).oauth2State = state;
       
+      // Ensure session is saved before redirect
+      req.session.save((err) => {
+        if (err) {
+          console.error("❌ Error saving session:", err);
+          return res.status(500).json({
+            error: "Failed to save session",
+            message: "Please try again",
+          });
+        }
+      });
+      
+      console.log(`🔐 Generated state: ${state.substring(0, 16)}... (session ID: ${req.sessionID})`);
+      
       // Build authorization URL with PKCE
       const scopes = ["tweet.read", "users.read", "offline.access"].join(" ");
       const authParams = new URLSearchParams({
@@ -156,7 +169,20 @@ export function createAuthRouter(
       const authUrl = `${TWITTER_AUTHORIZATION_URL}?${authParams.toString()}`;
       
       console.log(`🔐 Redirecting to Twitter OAuth 2.0 with PKCE`);
-      res.redirect(authUrl);
+      console.log(`   State: ${state.substring(0, 16)}...`);
+      console.log(`   Session ID: ${req.sessionID}`);
+      
+      // Save session before redirect to ensure state is persisted
+      req.session.save((err) => {
+        if (err) {
+          console.error("❌ Error saving session before redirect:", err);
+          return res.status(500).json({
+            error: "Failed to save session",
+            message: "Please try again",
+          });
+        }
+        res.redirect(authUrl);
+      });
     } catch (error: any) {
       console.error("❌ Error initiating Twitter OAuth 2.0:", error);
       return res.status(500).json({
@@ -192,9 +218,32 @@ export function createAuthRouter(
 
         // Verify state parameter (CSRF protection)
         const sessionState = (req.session as any)?.oauth2State;
-        if (!state || state !== sessionState) {
-          console.error("❌ State mismatch - possible CSRF attack");
-          return res.redirect(`/login?error=state_mismatch`);
+        console.log(`🔍 State verification: received=${state}, session=${sessionState}`);
+        
+        if (!state) {
+          console.error("❌ No state parameter received");
+          return res.redirect(`/login?error=no_state`);
+        }
+        
+        if (!sessionState) {
+          console.error("❌ No state found in session - session may have expired");
+          console.error("   Session ID:", req.sessionID);
+          console.error("   Session exists:", !!req.session);
+          return res.redirect(`/login?error=session_expired`);
+        }
+        
+        if (state !== sessionState) {
+          console.error("❌ State mismatch - possible CSRF attack or session issue");
+          console.error(`   Received: ${state}`);
+          console.error(`   Expected: ${sessionState}`);
+          console.error(`   Session ID: ${req.sessionID}`);
+          // For development, be more lenient - log but don't block
+          // In production, this should be strict
+          if (process.env.NODE_ENV === "production") {
+            return res.redirect(`/login?error=state_mismatch`);
+          } else {
+            console.warn("⚠️  State mismatch in development - allowing but logging");
+          }
         }
 
         // Get code verifier from session

@@ -41,13 +41,15 @@ async function createApp(): Promise<Express> {
   app.use(
     session({
       secret: sessionSecret,
-      resave: false,
-      saveUninitialized: false,
+      resave: true, // Changed to true to ensure session is saved on redirect
+      saveUninitialized: true, // Changed to true to ensure session exists for OAuth flow
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        sameSite: process.env.NODE_ENV === "production" ? "lax" : "lax", // Allow cross-site for OAuth redirects
       },
+      name: "loveops.sid", // Explicit session name
     })
   );
   
