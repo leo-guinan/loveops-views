@@ -38,20 +38,32 @@ async function createApp(): Promise<Express> {
   
   // Session configuration
   const sessionSecret = process.env.SESSION_SECRET || "change-me-in-production-" + Date.now();
+  
+  // Session middleware - must be before routes
   app.use(
     session({
       secret: sessionSecret,
-      resave: true, // Changed to true to ensure session is saved on redirect
-      saveUninitialized: true, // Changed to true to ensure session exists for OAuth flow
+      resave: true, // Save session even if not modified (needed for OAuth redirects)
+      saveUninitialized: true, // Create session even if empty (needed for OAuth flow)
       cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // HTTPS only in production
+        httpOnly: true, // Prevent XSS
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        sameSite: process.env.NODE_ENV === "production" ? "lax" : "lax", // Allow cross-site for OAuth redirects
+        sameSite: "lax", // Allow OAuth redirects but protect against CSRF
+        path: "/", // Available on all paths
       },
       name: "loveops.sid", // Explicit session name
     })
   );
+  
+  // Log session creation for debugging
+  app.use((req, res, next) => {
+    if (req.session && !req.session.initialized) {
+      req.session.initialized = true;
+      console.log(`📝 New session created: ${req.sessionID}`);
+    }
+    next();
+  });
   
   // Serve static files from dist/public (built React app) or public (fallback)
   app.use(express.static("dist/public"));

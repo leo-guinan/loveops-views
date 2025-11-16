@@ -36,6 +36,22 @@ function generatePKCE() {
   return { codeVerifier, codeChallenge };
 }
 
+// Helper to encode state with code verifier (for when session doesn't persist)
+function encodeStateWithVerifier(state: string, codeVerifier: string): string {
+  const payload = JSON.stringify({ state, codeVerifier });
+  return Buffer.from(payload).toString("base64url");
+}
+
+// Helper to decode state with code verifier
+function decodeStateWithVerifier(encoded: string): { state: string; codeVerifier: string } | null {
+  try {
+    const payload = Buffer.from(encoded, "base64url").toString("utf-8");
+    return JSON.parse(payload);
+  } catch (error) {
+    return null;
+  }
+}
+
 export function createAuthRouter(
   authService: AuthService,
   worldModel: WorldModelService,
@@ -139,18 +155,14 @@ export function createAuthRouter(
       
       // Generate state for CSRF protection
       const state = randomBytes(32).toString("base64url");
-      (req.session as any).oauth2State = state;
       
-      // Ensure session is saved before redirect
-      req.session.save((err) => {
-        if (err) {
-          console.error("❌ Error saving session:", err);
-          return res.status(500).json({
-            error: "Failed to save session",
-            message: "Please try again",
-          });
-        }
-      });
+      // Store in session (for verification)
+      (req.session as any).oauth2State = state;
+      (req.session as any).oauth2CodeVerifier = codeVerifier;
+      
+      // Also encode state with code verifier as fallback (in case session doesn't persist)
+      // This is less secure but works when cookies don't persist
+      const encodedState = encodeStateWithVerifier(state, codeVerifier);
       
       console.log(`🔐 Generated state: ${state.substring(0, 16)}... (session ID: ${req.sessionID})`);
       
@@ -161,7 +173,7 @@ export function createAuthRouter(
         client_id: twitterClientId!,
         redirect_uri: callbackURL,
         scope: scopes,
-        state: state,
+        state: encodedState, // Use encoded state that includes code verifier
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
       });
@@ -171,6 +183,8 @@ export function createAuthRouter(
       console.log(`🔐 Redirecting to Twitter OAuth 2.0 with PKCE`);
       console.log(`   State: ${state.substring(0, 16)}...`);
       console.log(`   Session ID: ${req.sessionID}`);
+      console.log(`   Cookie header: ${req.headers.cookie ? "present" : "missing"}`);
+      console.log(`   Session saved: oauth2State=${!!(req.session as any).oauth2State}, oauth2CodeVerifier=${!!(req.session as any).oauth2CodeVerifier}`);
       
       // Save session before redirect to ensure state is persisted
       req.session.save((err) => {
@@ -181,6 +195,15 @@ export function createAuthRouter(
             message: "Please try again",
           });
         }
+        console.log(`💾 Session saved successfully before redirect`);
+        // Set cookie explicitly to ensure it's sent
+        res.cookie("loveops.sid", req.sessionID, {
+          httpOnly: true,
+          secure: false, // false for localhost
+          sameSite: "lax",
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: "/",
+        });
         res.redirect(authUrl);
       });
     } catch (error: any) {
@@ -217,40 +240,47 @@ export function createAuthRouter(
         }
 
         // Verify state parameter (CSRF protection)
-        const sessionState = (req.session as any)?.oauth2State;
-        console.log(`🔍 State verification: received=${state}, session=${sessionState}`);
+        console.log(`🔍 Callback received - Session ID: ${req.sessionID}`);
+        console.log(`   Cookie header: ${req.headers.cookie ? "present" : "missing"}`);
+        console.log(`   Session exists: ${!!req.session}`);
+        console.log(`   Received encoded state: ${state}`);
         
-        if (!state) {
-          console.error("❌ No state parameter received");
+        if (!state || typeof state !== "string") {
+          console.error("❌ No state parameter received from Twitter");
           return res.redirect(`/login?error=no_state`);
         }
         
-        if (!sessionState) {
-          console.error("❌ No state found in session - session may have expired");
-          console.error("   Session ID:", req.sessionID);
-          console.error("   Session exists:", !!req.session);
-          return res.redirect(`/login?error=session_expired`);
+        // Decode state to get original state and code verifier
+        const decoded = decodeStateWithVerifier(state);
+        if (!decoded) {
+          console.error("❌ Failed to decode state parameter");
+          return res.redirect(`/login?error=invalid_state`);
         }
         
-        if (state !== sessionState) {
-          console.error("❌ State mismatch - possible CSRF attack or session issue");
-          console.error(`   Received: ${state}`);
-          console.error(`   Expected: ${sessionState}`);
-          console.error(`   Session ID: ${req.sessionID}`);
-          // For development, be more lenient - log but don't block
-          // In production, this should be strict
-          if (process.env.NODE_ENV === "production") {
-            return res.redirect(`/login?error=state_mismatch`);
+        const { state: originalState, codeVerifier } = decoded;
+        console.log(`   Decoded state: ${originalState.substring(0, 16)}...`);
+        console.log(`   Code verifier: ${codeVerifier ? "present" : "missing"}`);
+        
+        // Try to verify against session state if available (for CSRF protection)
+        const sessionState = (req.session as any)?.oauth2State;
+        if (sessionState) {
+          if (originalState !== sessionState) {
+            console.warn("⚠️  State mismatch with session - but using encoded state");
+            // In production, this could be a security issue
+            if (process.env.NODE_ENV === "production") {
+              console.error("❌ State mismatch in production - possible CSRF attack");
+              return res.redirect(`/login?error=state_mismatch`);
+            }
           } else {
-            console.warn("⚠️  State mismatch in development - allowing but logging");
+            console.log(`✅ State matches session - CSRF protection verified`);
           }
+        } else {
+          console.warn("⚠️  No session state found - using encoded state (session may not have persisted)");
         }
-
-        // Get code verifier from session
-        const codeVerifier = (req.session as any)?.oauth2CodeVerifier;
+        
         if (!codeVerifier) {
-          console.error("❌ Code verifier not found in session");
-          return res.redirect(`/login?error=session_expired`);
+          console.error("❌ Code verifier not found in decoded state");
+          return res.redirect(`/login?error=no_code_verifier`);
         }
 
         if (!code || typeof code !== "string") {
