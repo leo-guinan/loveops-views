@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Screen0Landing } from "./Screen0Landing";
 import { Screen1DocUpload } from "./Screen1DocUpload";
 import { Screen2Processing } from "./Screen2Processing";
@@ -12,34 +12,7 @@ import { Screen10FirstSpark } from "./Screen10FirstSpark";
 import { Screen11InviteFriend } from "./Screen11InviteFriend";
 import { Screen12Dashboard } from "./Screen12Dashboard";
 import { DateMeDocFlow } from "./DateMeDocFlow";
-
-type OnboardingState = {
-  screen: number;
-  uploadedFile?: File;
-  isProcessing?: boolean;
-  creatingDoc?: boolean;
-  compatibility?: {
-    emotionalRhythm: string;
-    communication: string;
-    preferences: string;
-  };
-  sparkIntro?: string;
-  archetype?: {
-    title: string;
-    traits: string[];
-  };
-  finalReport?: string;
-  accountData?: {
-    photo?: File;
-    name: string;
-    pronouns: string;
-    city: string;
-    pacing: string;
-    email?: string;
-  };
-  userId?: string;
-  referralCode?: string;
-};
+import { OnboardingStateMachine, OnboardingScreen, OnboardingStateData } from "./OnboardingStateMachine";
 
 type OnboardingFlowProps = {
   onComplete?: (userId: string) => void;
@@ -47,45 +20,33 @@ type OnboardingFlowProps = {
 };
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, userId: existingUserId }) => {
-  // Check if returning from payment success
-  const paymentComplete = typeof window !== 'undefined' && sessionStorage.getItem("loveops_paymentComplete") === "true";
-  const storedUserId = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_userId") : null;
+  // Initialize state machine
+  const stateMachineRef = useRef<OnboardingStateMachine>(
+    new OnboardingStateMachine(
+      undefined,
+      { userId: existingUserId || undefined }
+    )
+  );
+
+  const [stateMachine] = useState(() => stateMachineRef.current);
+  const [state, setState] = useState<OnboardingStateData>(() => stateMachine.getData());
+  const [currentScreen, setCurrentScreen] = useState<OnboardingScreen>(() => stateMachine.getCurrentScreen());
   
-  // Restore compatibility data if returning from payment
-  const storedCompatibility = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_compatibility") : null;
-  const storedSparkIntro = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_sparkIntro") : null;
-  const storedArchetype = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_archetype") : null;
-  const storedFinalReport = typeof window !== 'undefined' ? sessionStorage.getItem("loveops_finalReport") : null;
-  
-  // Determine initial screen: if payment complete, show compatibility report (screen 3)
-  // Otherwise, if userId exists, show paywall (screen 6), else start at beginning (screen 0)
-  const initialScreen = paymentComplete ? 3 : (existingUserId || storedUserId ? 6 : 0);
-  const initialUserId = existingUserId || storedUserId || undefined;
-  
-  const [state, setState] = useState<OnboardingState>({ 
-    screen: initialScreen,
-    userId: initialUserId,
-    // Restore compatibility data if available
-    compatibility: storedCompatibility ? JSON.parse(storedCompatibility) : undefined,
-    sparkIntro: storedSparkIntro || undefined,
-    archetype: storedArchetype ? JSON.parse(storedArchetype) : undefined,
-    finalReport: storedFinalReport || undefined,
-  });
-  
-  // Clear payment flags and restore data after loading
+  // Clear payment flag after loading (but keep data)
   useEffect(() => {
-    if (paymentComplete && typeof window !== 'undefined') {
+    if (stateMachine.getData().paymentCompleted && typeof window !== 'undefined') {
       sessionStorage.removeItem("loveops_paymentComplete");
-      // Keep userId and compatibility data for now, will be cleared when onboarding completes
     }
-  }, [paymentComplete]);
+  }, [stateMachine]);
 
   // Call onComplete when reaching dashboard
   useEffect(() => {
-    if (state.screen === 12 && state.userId && onComplete) {
+    if (currentScreen === OnboardingScreen.DASHBOARD && state.userId && onComplete) {
       onComplete(state.userId);
+      // Clear persisted state when onboarding completes
+      stateMachine.clearPersistedState();
     }
-  }, [state.screen, state.userId, onComplete]);
+  }, [currentScreen, state.userId, onComplete, stateMachine]);
 
   // Mock data generators - in real app, these would come from API
   const generateCompatibility = () => ({
@@ -113,34 +74,56 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     anecdote: "They mentioned how a late-night talk about childhood memories revealed more about compatibility than months of dating profiles.",
   });
 
-  const handleScreen0Upload = () => setState({ ...state, screen: 1 });
+  const handleScreen0Upload = () => {
+    if (stateMachine.transitionTo(OnboardingScreen.DOC_UPLOAD)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
+  };
+  
   const handleScreen0NoDoc = () => {
     // For now, just proceed to doc upload
-    setState({ ...state, screen: 1 });
+    if (stateMachine.transitionTo(OnboardingScreen.DOC_UPLOAD)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
+  
   const handleScreen0CreateDoc = () => {
     setState({ ...state, creatingDoc: true });
   };
+  
   const handleDateMeDocComplete = async (docText: string) => {
     // Date-Me Doc created, now treat it as if it was uploaded
-    // Create a file from the text and proceed to processing
     const blob = new Blob([docText], { type: "text/plain" });
     const file = new File([blob], "date-me-doc.txt", { type: "text/plain" });
     
-    // Close the doc creation flow - handleScreen1Upload will handle screen transition
+    // Close the doc creation flow
     setState((prevState) => ({ ...prevState, creatingDoc: false }));
     
-    // Upload and process the file (this will set screen to 2 and start processing)
+    // Upload and process the file
     await handleScreen1Upload(file);
   };
+  
   const handleDateMeDocCancel = () => {
-    setState({ ...state, creatingDoc: false, screen: 0 });
+    if (stateMachine.transitionTo(OnboardingScreen.LANDING)) {
+      setState({ ...stateMachine.getData(), creatingDoc: false });
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen1Upload = async (file: File) => {
     // Move to processing screen immediately
     const tempUserId = state.userId || `temp-${Date.now()}`;
-    setState({ ...state, screen: 2, uploadedFile: file, isProcessing: true });
+    
+    if (stateMachine.transitionTo(OnboardingScreen.PROCESSING, {
+      uploadedFile: file,
+      isProcessing: true,
+      userId: tempUserId,
+    })) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
     
     // Upload and enqueue the file
     try {
@@ -164,12 +147,16 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     } catch (error) {
       console.error("Error enqueueing document:", error);
       alert("Failed to queue your document for processing. Please try again.");
-      setState({ ...state, screen: 1, isProcessing: false }); // Go back to upload screen
+      // Go back to upload screen
+      if (stateMachine.transitionTo(OnboardingScreen.DOC_UPLOAD, { isProcessing: false })) {
+        setState(stateMachine.getData());
+        setCurrentScreen(stateMachine.getCurrentScreen());
+      }
     }
   };
 
   const pollJobStatus = async (jobId: string, userId: string) => {
-    const maxAttempts = 120; // Poll for up to 2 minutes (jobs can take time)
+    const maxAttempts = 120; // Poll for up to 2 minutes
     let attempts = 0;
     
     const poll = async () => {
@@ -191,30 +178,31 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
           const archetype = data.results?.archetype || generateArchetype();
           const finalReport = data.results?.finalReport;
           
-          // Store compatibility data in sessionStorage so it persists after payment redirect
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem("loveops_compatibility", JSON.stringify(compatibility));
-            sessionStorage.setItem("loveops_sparkIntro", sparkIntro || "");
-            sessionStorage.setItem("loveops_archetype", JSON.stringify(archetype || {}));
-            sessionStorage.setItem("loveops_finalReport", finalReport || "");
-            sessionStorage.setItem("loveops_userId", userId);
-          }
+          // Mark analysis as completed in state machine
+          stateMachine.markAnalysisCompleted(compatibility, sparkIntro, archetype, finalReport);
           
-          setState((prevState) => ({
-            ...prevState,
-            screen: 3, // Move to compatibility preview
-            uploadedFile: prevState.uploadedFile,
+          // Transition to compatibility preview screen
+          if (stateMachine.transitionTo(OnboardingScreen.COMPATIBILITY_PREVIEW, {
+            uploadedFile: state.uploadedFile,
             isProcessing: false,
             compatibility,
             sparkIntro,
             archetype,
             finalReport,
             userId: userId,
-          }));
+          })) {
+            setState(stateMachine.getData());
+            setCurrentScreen(stateMachine.getCurrentScreen());
+          } else {
+            console.error("Failed to transition to compatibility preview");
+            setState((prevState) => ({
+              ...prevState,
+              isProcessing: false,
+            }));
+          }
         } else if (data.status === "failed") {
           throw new Error(data.results?.error || "Document processing failed");
         } else if (data.status === "not_found") {
-          // Job not found - might have been cleaned up or never existed
           throw new Error("Job not found. Please try uploading again.");
         } else {
           // Still processing (queued, processing), poll again
@@ -228,7 +216,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
       } catch (error) {
         console.error("Error polling job status:", error);
         alert(`Failed to check processing status: ${error instanceof Error ? error.message : "Unknown error"}`);
-        setState((prevState) => ({ ...prevState, screen: 1, isProcessing: false }));
+        // Go back to upload screen
+        if (stateMachine.transitionTo(OnboardingScreen.DOC_UPLOAD, { isProcessing: false })) {
+          setState(stateMachine.getData());
+          setCurrentScreen(stateMachine.getCurrentScreen());
+        }
       }
     };
 
@@ -237,78 +229,109 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
   };
 
   const handleScreen2Complete = () => {
-    // Move to compatibility preview with the processed data
-    // Only advance if compatibility data is available
-    setState((prevState) => {
-      if (prevState.compatibility) {
-        return {
-          ...prevState,
-          screen: 3,
-        };
-      } else {
-        // Data not ready yet, stay on processing screen
-        console.log("Waiting for compatibility data...");
-        return prevState;
+    // Only advance if compatibility data is available and analysis is completed
+    if (stateMachine.canShowCompatibilityPreview()) {
+      if (stateMachine.transitionTo(OnboardingScreen.COMPATIBILITY_PREVIEW)) {
+        setState(stateMachine.getData());
+        setCurrentScreen(stateMachine.getCurrentScreen());
       }
-    });
+    } else {
+      // Data not ready yet, stay on processing screen
+      console.log("Waiting for compatibility data...");
+    }
   };
 
   const handleScreen3Continue = () => {
-    setState({
-      ...state,
-      screen: 4,
-      sparkIntro: generateSparkIntro(),
-    });
+    if (stateMachine.transitionTo(OnboardingScreen.SPARK_INTRO, {
+      sparkIntro: state.sparkIntro || generateSparkIntro(),
+    })) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen4Continue = () => {
-    setState({
-      ...state,
-      screen: 5,
-      archetype: generateArchetype(),
-    });
+    if (stateMachine.transitionTo(OnboardingScreen.ARCHETYPE_PREVIEW, {
+      archetype: state.archetype || generateArchetype(),
+    })) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen5Continue = () => {
-    setState({ ...state, screen: 6 });
+    if (stateMachine.transitionTo(OnboardingScreen.PAYWALL)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen6PaymentComplete = () => {
-    // Payment completed via Stripe redirect, proceed to account creation
-    setState({ ...state, screen: 8 });
+    // Payment completed - mark it and transition to compatibility preview if analysis is done
+    stateMachine.markPaymentCompleted();
+    
+    if (stateMachine.canShowCompatibilityPreview()) {
+      // Show compatibility preview after payment (user already saw it, but show again)
+      if (stateMachine.transitionTo(OnboardingScreen.COMPATIBILITY_PREVIEW)) {
+        setState(stateMachine.getData());
+        setCurrentScreen(stateMachine.getCurrentScreen());
+      }
+    } else {
+      // Otherwise proceed to account creation
+      if (stateMachine.transitionTo(OnboardingScreen.ACCOUNT_CREATION)) {
+        setState(stateMachine.getData());
+        setCurrentScreen(stateMachine.getCurrentScreen());
+      }
+    }
   };
 
   const handleScreen8Complete = (data: any) => {
     // Generate a mock userId
     const userId = `user-${Date.now()}`;
-    setState({
-      ...state,
-      screen: 9,
+    if (stateMachine.transitionTo(OnboardingScreen.ENGINE_LIVE, {
       accountData: data,
       userId,
-    });
+    })) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen9Continue = () => {
-    setState({ ...state, screen: 10 });
+    if (stateMachine.transitionTo(OnboardingScreen.FIRST_SPARK)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen10Curious = () => {
-    setState({ ...state, screen: 11 });
+    if (stateMachine.transitionTo(OnboardingScreen.INVITE_FRIEND)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen10NotForMe = () => {
     // Refine model - for now, just proceed
-    setState({ ...state, screen: 11 });
+    if (stateMachine.transitionTo(OnboardingScreen.INVITE_FRIEND)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen11Invite = (email: string) => {
     // Send invite - for now, just proceed
-    setState({ ...state, screen: 12 });
+    if (stateMachine.transitionTo(OnboardingScreen.DASHBOARD)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleScreen11Skip = () => {
-    setState({ ...state, screen: 12 });
+    if (stateMachine.transitionTo(OnboardingScreen.DASHBOARD)) {
+      setState(stateMachine.getData());
+      setCurrentScreen(stateMachine.getCurrentScreen());
+    }
   };
 
   const handleMatchSelect = (matchId: string) => {
@@ -326,8 +349,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
     );
   }
 
-  switch (state.screen) {
-    case 0:
+  // Render based on state machine's current screen
+  switch (currentScreen) {
+    case OnboardingScreen.LANDING:
       return (
         <Screen0Landing
           onUploadDoc={handleScreen0Upload}
@@ -335,37 +359,61 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
           onCreateDoc={handleScreen0CreateDoc}
         />
       );
-    case 1:
-      return <Screen1DocUpload onDocUploaded={handleScreen1Upload} onBack={() => setState({ ...state, screen: 0 })} />;
-    case 2:
-      return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
-    case 3:
-      if (!state.compatibility) {
-        // Compatibility data not ready yet, stay on processing screen
+    case OnboardingScreen.DOC_UPLOAD:
+      return (
+        <Screen1DocUpload 
+          onDocUploaded={handleScreen1Upload} 
+          onBack={() => {
+            if (stateMachine.transitionTo(OnboardingScreen.LANDING)) {
+              setState(stateMachine.getData());
+              setCurrentScreen(stateMachine.getCurrentScreen());
+            }
+          }} 
+        />
+      );
+    case OnboardingScreen.PROCESSING:
+      // Only show processing if analysis is not already completed
+      if (stateMachine.shouldShowProcessing()) {
+        return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
+      } else {
+        // Analysis already done, transition to compatibility preview
+        if (stateMachine.canShowCompatibilityPreview()) {
+          if (stateMachine.transitionTo(OnboardingScreen.COMPATIBILITY_PREVIEW)) {
+            setState(stateMachine.getData());
+            setCurrentScreen(stateMachine.getCurrentScreen());
+            // Fall through to show compatibility preview
+          }
+        }
+        // Fall through to show compatibility preview or stay on processing
+        return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={false} />;
+      }
+    case OnboardingScreen.COMPATIBILITY_PREVIEW:
+      if (!stateMachine.canShowCompatibilityPreview()) {
+        // Can't show preview yet, show processing
         return <Screen2Processing onComplete={handleScreen2Complete} isProcessing={state.isProcessing} />;
       }
       return (
         <Screen3CompatibilityPreview
-          compatibility={state.compatibility}
+          compatibility={state.compatibility!}
           finalReport={state.finalReport}
           onContinue={handleScreen3Continue}
         />
       );
-    case 4:
+    case OnboardingScreen.SPARK_INTRO:
       return (
         <Screen4SparkIntro
           sparkIntro={state.sparkIntro!}
           onContinue={handleScreen4Continue}
         />
       );
-    case 5:
+    case OnboardingScreen.ARCHETYPE_PREVIEW:
       return (
         <Screen5ArchetypePreview
           archetype={state.archetype!}
           onContinue={handleScreen5Continue}
         />
       );
-    case 6:
+    case OnboardingScreen.PAYWALL:
       return (
         <Screen6Paywall
           userId={state.userId || "temp-user"}
@@ -375,11 +423,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
           onWhyFee={() => {}}
         />
       );
-    case 8:
+    case OnboardingScreen.ACCOUNT_CREATION:
       return <Screen8AccountCreation onComplete={handleScreen8Complete} />;
-    case 9:
+    case OnboardingScreen.ENGINE_LIVE:
       return <Screen9EngineLive onContinue={handleScreen9Continue} />;
-    case 10:
+    case OnboardingScreen.FIRST_SPARK:
       return (
         <Screen10FirstSpark
           spark={generateFirstSpark()}
@@ -387,14 +435,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
           onNotForMe={handleScreen10NotForMe}
         />
       );
-    case 11:
+    case OnboardingScreen.INVITE_FRIEND:
       return (
         <Screen11InviteFriend
           onInvite={handleScreen11Invite}
           onSkip={handleScreen11Skip}
         />
       );
-    case 12:
+    case OnboardingScreen.DASHBOARD:
       return (
         <Screen12Dashboard
           userId={state.userId || "user-default"}
@@ -402,7 +450,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, user
         />
       );
     default:
+      // Invalid state, reset to landing
+      console.warn(`Invalid screen state: ${currentScreen}, resetting to landing`);
+      if (stateMachine.transitionTo(OnboardingScreen.LANDING)) {
+        setState(stateMachine.getData());
+        setCurrentScreen(stateMachine.getCurrentScreen());
+      }
       return <Screen0Landing onUploadDoc={handleScreen0Upload} onNoDoc={handleScreen0NoDoc} />;
   }
 };
-
