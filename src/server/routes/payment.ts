@@ -13,8 +13,17 @@ export function createPaymentRouter(): Router {
     try {
       const { userId, email, referralCode } = req.body;
 
-      if (!userId || !email) {
-        return res.status(400).json({ error: "userId and email are required" });
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+
+      // Check Stripe configuration
+      if (!process.env.STRIPE_SECRET_KEY) {
+        console.error("STRIPE_SECRET_KEY not configured");
+        return res.status(500).json({ 
+          error: "Payment system not configured. Please contact support.",
+          details: "STRIPE_SECRET_KEY environment variable is missing"
+        });
       }
 
       const baseUrl = process.env.BASE_URL || "http://localhost:3000";
@@ -39,7 +48,7 @@ export function createPaymentRouter(): Router {
         mode: "payment",
         success_url: successUrl,
         cancel_url: cancelUrl,
-        customer_email: email,
+        ...(email ? { customer_email: email } : {}), // Only include email if provided
         metadata: {
           userId,
           referralCode: referralCode || "",
@@ -49,13 +58,23 @@ export function createPaymentRouter(): Router {
 
       const session = await stripe.checkout.sessions.create(sessionParams);
 
+      console.log(`✅ Created Stripe checkout session: ${session.id} for user ${userId}`);
+
       res.json({ 
         sessionId: session.id,
         url: session.url 
       });
     } catch (error) {
       console.error("Error creating checkout session:", error);
-      res.status(500).json({ error: "Failed to create checkout session" });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorDetails = error instanceof Stripe.errors.StripeError 
+        ? error.message 
+        : errorMessage;
+      
+      res.status(500).json({ 
+        error: "Failed to create checkout session",
+        details: errorDetails
+      });
     }
   });
 

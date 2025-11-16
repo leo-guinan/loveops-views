@@ -35,13 +35,14 @@ export const Screen6Paywall: React.FC<Props> = ({ userId, email, referralCode, o
         },
         body: JSON.stringify({
           userId,
-          email: email || "",
-          referralCode: referralCode || "",
+          email: email || undefined, // Don't send empty string
+          referralCode: referralCode || undefined,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create checkout session");
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || errorData.details || "Failed to create checkout session");
       }
 
       const data = await response.json();
@@ -50,11 +51,12 @@ export const Screen6Paywall: React.FC<Props> = ({ userId, email, referralCode, o
       if (data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No checkout URL received from server");
       }
     } catch (error) {
       console.error("Error initiating payment:", error);
-      alert("Failed to start payment process. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      alert(`Failed to start payment process: ${errorMessage}\n\nPlease check your browser console for details.`);
       setLoading(false);
     }
   };
