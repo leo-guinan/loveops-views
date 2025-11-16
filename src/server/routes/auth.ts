@@ -35,17 +35,22 @@ export function createAuthRouter(
   // NOTE: passport-twitter uses OAuth 1.0a (deprecated by Twitter)
   // For OAuth 2.0, consider using passport-oauth2 or implementing custom Twitter OAuth 2.0 flow
   // See: https://developer.twitter.com/en/docs/authentication/oauth-2-0
-  const twitterClientId = process.env.TWITTER_CLIENT_ID;
-  const twitterClientSecret = process.env.TWITTER_CLIENT_SECRET;
+  const twitterClientId = process.env.TWITTER_CLIENT_ID?.trim();
+  const twitterClientSecret = process.env.TWITTER_CLIENT_SECRET?.trim();
   const callbackURL = process.env.TWITTER_CALLBACK_URL || 
     `${process.env.BASE_URL || "http://localhost:3000"}/api/auth/twitter/callback`;
 
-  if (!twitterClientId || !twitterClientSecret) {
+  const isTwitterConfigured = twitterClientId && twitterClientSecret && twitterClientId.length > 0 && twitterClientSecret.length > 0;
+
+  if (!isTwitterConfigured) {
     console.warn("⚠️  Twitter OAuth credentials not configured. Set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET");
+    console.warn("   Twitter OAuth routes will return 503 errors until configured.");
   } else {
+    console.log(`✅ Twitter OAuth configured with callback: ${callbackURL}`);
     // Using OAuth 1.0a for now (passport-twitter)
     // TODO: Migrate to OAuth 2.0 when Twitter fully deprecates 1.0a
     passport.use(
+      "twitter",
       new TwitterStrategy(
         {
           consumerKey: twitterClientId,
@@ -55,6 +60,7 @@ export function createAuthRouter(
         },
         async (token: string, tokenSecret: string, profile: any, done: any) => {
           try {
+            console.log(`📱 Twitter OAuth callback received for user: @${profile.username}`);
             const twitterUser: TwitterUser = {
               id: profile.id,
               username: profile.username,
@@ -65,6 +71,7 @@ export function createAuthRouter(
             const userId = await authService.createOrGetUser(twitterUser);
             const session = authService.buildSession(twitterUser, userId);
 
+            console.log(`✅ Twitter OAuth successful for user: ${userId} (@${twitterUser.username})`);
             return done(null, {
               userId: session.userId,
               twitterId: session.twitterId,
@@ -73,7 +80,7 @@ export function createAuthRouter(
               profileImageUrl: session.profileImageUrl,
             });
           } catch (error) {
-            console.error("Error in Twitter OAuth callback:", error);
+            console.error("❌ Error in Twitter OAuth callback:", error);
             return done(error, null);
           }
         }
@@ -120,7 +127,15 @@ export function createAuthRouter(
    * GET /api/auth/twitter
    * Initiate Twitter OAuth login
    */
-  router.get("/twitter", passport.authenticate("twitter"));
+  router.get("/twitter", (req: Request, res: Response, next: NextFunction) => {
+    if (!isTwitterConfigured) {
+      return res.status(503).json({
+        error: "Twitter OAuth not configured",
+        message: "Please set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET environment variables",
+      });
+    }
+    passport.authenticate("twitter")(req, res, next);
+  });
 
   /**
    * GET /api/auth/twitter/callback
@@ -128,10 +143,18 @@ export function createAuthRouter(
    */
   router.get(
     "/twitter/callback",
-    passport.authenticate("twitter", {
-      failureRedirect: "/login?error=twitter_auth_failed",
-      successRedirect: "/",
-    })
+    (req: Request, res: Response, next: NextFunction) => {
+      if (!isTwitterConfigured) {
+        return res.status(503).json({
+          error: "Twitter OAuth not configured",
+          message: "Please set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET environment variables",
+        });
+      }
+      passport.authenticate("twitter", {
+        failureRedirect: "/login?error=twitter_auth_failed",
+        successRedirect: "/",
+      })(req, res, next);
+    }
   );
 
   /**
