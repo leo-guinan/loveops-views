@@ -77,60 +77,8 @@ export function createAuthRouter(
     console.log(`   Using Twitter API v2 endpoints with PKCE`);
   }
 
-  // Serialize user for session
-  passport.serializeUser((user: Express.User, done) => {
-    done(null, user.userId);
-  });
-
-  // Deserialize user from session
-  passport.deserializeUser(async (userId: string, done) => {
-    try {
-      // Get user profile from world model
-      const events = await worldModel["client"].getEventsForUser(userId);
-      
-      if (!events || events.length === 0) {
-        // No events found, return minimal user info
-        console.warn(`No events found for user ${userId} during deserialization`);
-        done(null, {
-          userId,
-          twitterId: "",
-          twitterUsername: "",
-          displayName: "",
-          profileImageUrl: undefined,
-        });
-        return;
-      }
-      
-      const profile = await worldModel["client"].evalView<any>("UserProfileStateView", events);
-      
-      // Extract Twitter-related fields from profile (may be stored in different ways)
-      const twitterId = (profile as any)?.twitterId || (profile as any)?.social?.twitter?.id || "";
-      const twitterUsername = (profile as any)?.twitterUsername || (profile as any)?.social?.twitter?.username || "";
-      const displayName = (profile as any)?.displayName || (profile as any)?.core?.name || "";
-      const profileImageUrl = (profile as any)?.profileImageUrl || (profile as any)?.photos?.[0] || undefined;
-      
-      done(null, {
-        userId,
-        twitterId,
-        twitterUsername,
-        displayName,
-        profileImageUrl,
-      });
-    } catch (error) {
-      console.error("Error deserializing user:", error);
-      // Don't fail completely - return minimal user info
-      done(null, {
-        userId,
-        twitterId: "",
-        twitterUsername: "",
-        displayName: "",
-        profileImageUrl: undefined,
-      });
-    }
-  });
-
-  // Note: Passport middleware is initialized in server/index.ts
-  // We don't initialize it here to avoid double initialization
+  // Note: Passport serialization/deserialization is configured in server/index.ts
+  // before passport middleware is initialized. This ensures it works correctly.
 
   /**
    * GET /api/auth/twitter

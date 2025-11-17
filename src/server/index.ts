@@ -66,15 +66,7 @@ async function createApp(): Promise<Express> {
     next();
   });
   
-  // Initialize Passport middleware - MUST be after session but before routes
-  app.use(passport.initialize());
-  app.use(passport.session());
-  
-  // Serve static files from dist/public (built React app) or public (fallback)
-  app.use(express.static("dist/public"));
-  app.use(express.static("public"));
-
-  // Initialize services
+  // Initialize services (needed for Passport serialization)
   const rhizomeClient = new LoveopsRhizomeClient(RHIZOME_NODE_URL);
   const worldModelService = new WorldModelService(rhizomeClient);
   const queueService = new QueueService();
@@ -84,11 +76,74 @@ async function createApp(): Promise<Express> {
   const policyService = new PolicyService(matchingEngine, coachingEngine);
   const authService = new AuthService(rhizomeClient, queueService);
 
+  // Configure Passport serialization BEFORE initializing middleware
+  // This must happen before passport.initialize() and passport.session()
+  passport.serializeUser((user: Express.User, done) => {
+    console.log(`📦 Serializing user: ${user.userId}`);
+    done(null, user.userId);
+  });
+
+  passport.deserializeUser(async (userId: string, done) => {
+    console.log(`📦 Deserializing user: ${userId}`);
+    try {
+      // Get user profile from world model
+      const events = await worldModelService["client"].getEventsForUser(userId);
+      
+      if (!events || events.length === 0) {
+        // No events found, return minimal user info
+        console.warn(`⚠️  No events found for user ${userId} during deserialization`);
+        done(null, {
+          userId,
+          twitterId: "",
+          twitterUsername: "",
+          displayName: "",
+          profileImageUrl: undefined,
+        });
+        return;
+      }
+      
+      const profile = await worldModelService["client"].evalView<any>("UserProfileStateView", events);
+      
+      // Extract Twitter-related fields from profile
+      const twitterId = (profile as any)?.twitterId || (profile as any)?.social?.twitter?.id || "";
+      const twitterUsername = (profile as any)?.twitterUsername || (profile as any)?.social?.twitter?.username || "";
+      const displayName = (profile as any)?.displayName || (profile as any)?.core?.name || "";
+      const profileImageUrl = (profile as any)?.profileImageUrl || (profile as any)?.photos?.[0] || undefined;
+      
+      console.log(`✅ Deserialized user: ${userId} (@${twitterUsername})`);
+      done(null, {
+        userId,
+        twitterId,
+        twitterUsername,
+        displayName,
+        profileImageUrl,
+      });
+    } catch (error) {
+      console.error("❌ Error deserializing user:", error);
+      // Don't fail completely - return minimal user info
+      done(null, {
+        userId,
+        twitterId: "",
+        twitterUsername: "",
+        displayName: "",
+        profileImageUrl: undefined,
+      });
+    }
+  });
+
+  // Initialize Passport middleware - MUST be after session and serialization setup
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+  // Serve static files from dist/public (built React app) or public (fallback)
+  app.use(express.static("dist/public"));
+  app.use(express.static("public"));
+
   // Start in-process queue processor
   const queueProcessor = new ViewsQueueProcessor(worldModelService, policyService);
   queueProcessor.start("views");
 
-  // Routes
+  // Routes (Passport serialization is already configured above)
   app.use("/api/auth", createAuthRouter(authService, worldModelService, policyService));
   app.use("/api/user", createUserRouter(worldModelService, policyService));
   app.use("/api/matches", createMatchesRouter(worldModelService, policyService));
