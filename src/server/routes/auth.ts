@@ -323,38 +323,20 @@ export function createAuthRouter(
             (req.session as any).passport = { user: user.userId };
           }
           
-          // Regenerate session to ensure cookie is set (helps with some browsers)
-          req.session.regenerate((regenerateErr) => {
-            if (regenerateErr) {
-              console.error("❌ Error regenerating session:", regenerateErr);
-              // Continue anyway - try saving
+          // Save session before redirect to ensure it's persisted
+          // DO NOT regenerate - it creates a new session ID and breaks the cookie
+          req.session.save((saveErr) => {
+            if (saveErr) {
+              console.error("❌ Error saving session after login:", saveErr);
+              return res.redirect(`/login?error=session_save_failed`);
             }
+            console.log(`💾 Session saved after login`);
+            console.log(`   Final passport session: ${JSON.stringify((req.session as any).passport || "none")}`);
+            console.log(`   Session ID: ${req.sessionID}`);
             
-            // Set passport session again after regeneration
-            (req.session as any).passport = { user: user.userId };
-            
-            // Save session before redirect to ensure it's persisted
-            req.session.save((saveErr) => {
-              if (saveErr) {
-                console.error("❌ Error saving session after login:", saveErr);
-                return res.redirect(`/login?error=session_save_failed`);
-              }
-              console.log(`💾 Session saved after login`);
-              console.log(`   Final passport session: ${JSON.stringify((req.session as any).passport || "none")}`);
-              console.log(`   Session ID: ${req.sessionID}`);
-              
-              // Set cookie explicitly to ensure it's sent
-              res.cookie("loveops.sid", req.sessionID, {
-                httpOnly: true,
-                secure: false,
-                sameSite: "lax",
-                maxAge: 30 * 24 * 60 * 60 * 1000,
-                path: "/",
-              });
-              
-              // Success - redirect to home
-              return res.redirect("/");
-            });
+            // Success - redirect to home
+            // Cookie is automatically set by express-session middleware
+            return res.redirect("/");
           });
         });
       } catch (error: any) {
