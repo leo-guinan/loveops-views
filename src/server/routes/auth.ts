@@ -315,16 +315,46 @@ export function createAuthRouter(
           console.log(`✅ Passport login successful for user: ${user.userId}`);
           console.log(`   Session ID: ${req.sessionID}`);
           console.log(`   User serialized: ${user.userId}`);
+          console.log(`   Passport session after login: ${JSON.stringify((req.session as any).passport || "none")}`);
           
-          // Save session before redirect to ensure it's persisted
-          req.session.save((saveErr) => {
-            if (saveErr) {
-              console.error("❌ Error saving session after login:", saveErr);
-              return res.redirect(`/login?error=session_save_failed`);
+          // Ensure passport session is set (sometimes req.login doesn't set it immediately)
+          if (!(req.session as any).passport) {
+            console.warn("⚠️  Passport session not set after req.login, setting manually");
+            (req.session as any).passport = { user: user.userId };
+          }
+          
+          // Regenerate session to ensure cookie is set (helps with some browsers)
+          req.session.regenerate((regenerateErr) => {
+            if (regenerateErr) {
+              console.error("❌ Error regenerating session:", regenerateErr);
+              // Continue anyway - try saving
             }
-            console.log(`💾 Session saved after login`);
-            // Success - redirect to home
-            return res.redirect("/");
+            
+            // Set passport session again after regeneration
+            (req.session as any).passport = { user: user.userId };
+            
+            // Save session before redirect to ensure it's persisted
+            req.session.save((saveErr) => {
+              if (saveErr) {
+                console.error("❌ Error saving session after login:", saveErr);
+                return res.redirect(`/login?error=session_save_failed`);
+              }
+              console.log(`💾 Session saved after login`);
+              console.log(`   Final passport session: ${JSON.stringify((req.session as any).passport || "none")}`);
+              console.log(`   Session ID: ${req.sessionID}`);
+              
+              // Set cookie explicitly to ensure it's sent
+              res.cookie("loveops.sid", req.sessionID, {
+                httpOnly: true,
+                secure: false,
+                sameSite: "lax",
+                maxAge: 30 * 24 * 60 * 60 * 1000,
+                path: "/",
+              });
+              
+              // Success - redirect to home
+              return res.redirect("/");
+            });
           });
         });
       } catch (error: any) {
@@ -343,6 +373,15 @@ export function createAuthRouter(
     console.log(`   Cookie header: ${req.headers.cookie ? "present" : "missing"}`);
     console.log(`   req.user: ${req.user ? "present" : "null"}`);
     console.log(`   Session exists: ${!!req.session}`);
+    console.log(`   Session passport: ${JSON.stringify((req.session as any).passport || "none")}`);
+    
+    // Check if passport session exists
+    const passportSession = (req.session as any).passport;
+    if (passportSession) {
+      console.log(`   Passport session found: ${JSON.stringify(passportSession)}`);
+    } else {
+      console.log(`   ⚠️  No passport session found in req.session`);
+    }
     
     if (req.user) {
       console.log(`✅ User authenticated: ${req.user.userId} (@${req.user.twitterUsername})`);
@@ -357,6 +396,7 @@ export function createAuthRouter(
       });
     } else {
       console.log(`❌ User not authenticated - req.user is null`);
+      console.log(`   Session passport data: ${passportSession ? JSON.stringify(passportSession) : "none"}`);
       console.log(`   This usually means passport.deserializeUser didn't populate req.user`);
       res.status(401).json({
         authenticated: false,
